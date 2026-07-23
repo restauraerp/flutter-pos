@@ -7,6 +7,7 @@ import '../../../data/models/models.dart';
 import '../../../state/pos_controller.dart';
 import '../../../data/repositories/pos_repository.dart';
 import '../../../services/ticket_printer.dart';
+import '../../print/pdf_preview_page.dart';
 import '../../theme.dart';
 import 'discount_field.dart';
 
@@ -540,29 +541,38 @@ class _OrderPlacedDialog extends StatefulWidget {
 class _OrderPlacedDialogState extends State<_OrderPlacedDialog> {
   bool _printing = false;
 
-  /// Checkout only returns the new id, so the full order is fetched here to
-  /// print it.
+  /// Checkout only returns the new id, so the full order is fetched here before
+  /// opening the print preview.
   Future<void> _print({required bool kitchen}) async {
     setState(() => _printing = true);
 
     final pos = context.read<PosController>();
     final repository = PosRepository(context.read<ApiClient>());
     final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
     try {
       final order = await repository.order(widget.orderId);
-      if (kitchen) {
-        await TicketPrinter.printKitchenTicket(order);
-      } else {
-        await TicketPrinter.printReceipt(
-          order,
-          VenueDetails.fromSettings(pos.settings),
-        );
-      }
+      if (!mounted) return;
+      final venue = VenueDetails.fromSettings(pos.settings);
+
+      await navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => PdfPreviewPage(
+            title: kitchen
+                ? 'Kitchen Ticket · #${order.id}'
+                : 'Receipt · #${order.id}',
+            documentName: kitchen ? 'KOT-${order.id}' : 'Receipt-${order.id}',
+            buildDocument: (_) => kitchen
+                ? TicketPrinter.buildKitchenTicket(order)
+                : TicketPrinter.buildReceipt(order, venue),
+          ),
+        ),
+      );
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Could not print: $e'),
+          content: Text('Could not open preview: $e'),
           backgroundColor: AppColors.danger,
         ),
       );

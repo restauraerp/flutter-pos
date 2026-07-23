@@ -8,6 +8,7 @@ import '../../state/orders_controller.dart';
 import '../../state/pos_controller.dart';
 import '../../state/auth_controller.dart';
 import '../../services/ticket_printer.dart';
+import '../print/pdf_preview_page.dart';
 import '../theme.dart';
 import 'widgets/order_card.dart';
 import 'widgets/payment_sheet.dart';
@@ -73,35 +74,30 @@ class _OrdersView extends StatelessWidget {
     }
   }
 
-  /// Prints a kitchen ticket or receipt.
+  /// Opens the print preview for a kitchen ticket or receipt.
   ///
   /// The list endpoint already eager-loads items, products, and payments, so
   /// the order in hand is complete — no refetch needed before printing.
-  Future<void> _print(
+  void _print(
     BuildContext context,
     OrderModel order, {
     required bool kitchen,
-  }) async {
-    final pos = context.read<PosController>();
-    final messenger = ScaffoldMessenger.of(context);
+  }) {
+    final venue = VenueDetails.fromSettings(context.read<PosController>().settings);
 
-    try {
-      if (kitchen) {
-        await TicketPrinter.printKitchenTicket(order);
-      } else {
-        await TicketPrinter.printReceipt(
-          order,
-          VenueDetails.fromSettings(pos.settings),
-        );
-      }
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Could not print: $e'),
-          backgroundColor: AppColors.danger,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PdfPreviewPage(
+          title: kitchen
+              ? 'Kitchen Ticket · #${order.id}'
+              : 'Receipt · #${order.id}',
+          documentName: kitchen ? 'KOT-${order.id}' : 'Receipt-${order.id}',
+          buildDocument: (_) => kitchen
+              ? TicketPrinter.buildKitchenTicket(order)
+              : TicketPrinter.buildReceipt(order, venue),
         ),
-      );
-    }
+      ),
+    );
   }
 
   Future<void> _cancel(BuildContext context, OrderModel order) async {

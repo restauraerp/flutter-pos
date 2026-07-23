@@ -1,7 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../data/models/models.dart';
 
@@ -34,9 +35,10 @@ class VenueDetails {
 /// Builds and prints the two thermal documents a POS produces: the kitchen
 /// order ticket and the customer receipt.
 ///
-/// Both are laid out for an 80mm roll and handed to the platform print dialog
-/// (Android print service, AirPrint, CUPS, Windows), which is where a thermal
-/// printer appears once it is installed on the device.
+/// Both are laid out for an 80mm roll and returned as PDF bytes. The UI hands
+/// them to an in-app [PdfPreview] page (see `PdfPreviewPage`), whose Print
+/// action opens the platform print dialog (Android print service, AirPrint,
+/// CUPS, Windows) — where a thermal printer appears once it is installed.
 class TicketPrinter {
   const TicketPrinter._();
 
@@ -57,8 +59,9 @@ class TicketPrinter {
     return font;
   }
 
-  /// Kitchen Order Ticket — what to cook, with no prices.
-  static Future<void> printKitchenTicket(OrderModel order) async {
+  /// Kitchen Order Ticket — what to cook, with no prices. Returns the PDF bytes
+  /// for previewing/printing.
+  static Future<Uint8List> buildKitchenTicket(OrderModel order) async {
     final font = await _font();
     final doc = pw.Document();
 
@@ -159,14 +162,15 @@ class TicketPrinter {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (_) => doc.save(),
-      name: 'KOT-${order.id}',
-    );
+    return doc.save();
   }
 
-  /// Customer receipt — itemised, with totals and payment method.
-  static Future<void> printReceipt(OrderModel order, VenueDetails venue) async {
+  /// Customer receipt — itemised, with totals and payment method. Returns the
+  /// PDF bytes for previewing/printing.
+  static Future<Uint8List> buildReceipt(
+    OrderModel order,
+    VenueDetails venue,
+  ) async {
     final font = await _font();
     final doc = pw.Document();
     String money(double v) => '${venue.currency}${v.toStringAsFixed(2)}';
@@ -324,10 +328,7 @@ class TicketPrinter {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (_) => doc.save(),
-      name: 'Receipt-${order.id}',
-    );
+    return doc.save();
   }
 
   static pw.Widget _row(
