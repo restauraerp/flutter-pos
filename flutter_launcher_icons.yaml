@@ -1,0 +1,27 @@
+# Launcher icons for every target platform.
+# Regenerate after changing the logo with:
+#   dart run flutter_launcher_icons
+#
+# Sources are derived from Assets/restaura-logo-square.png:
+#   icon-mark.png                 the teal mark alone, without the wordmark,
+#                                 which is illegible at icon sizes
+#   icon-adaptive-foreground.png  the same mark inset into Android's safe zone
+flutter_launcher_icons:
+  image_path: "assets/brand/icon-mark.png"
+
+  android: true
+  adaptive_icon_background: "#0F6E5C"
+  adaptive_icon_foreground: "assets/brand/icon-adaptive-foreground.png"
+
+  ios: true
+  # iOS rejects icons containing an alpha channel.
+  remove_alpha_ios: true
+
+  macos:
+    generate: true
+    image_path: "assets/brand/icon-mark.png"
+
+  windows:
+    generate: true
+    image_path: "assets/brand/icon-mark.png"
+    icon_size: 256

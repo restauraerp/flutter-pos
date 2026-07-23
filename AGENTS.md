@@ -3,6 +3,7 @@
 * API project is at `../../core-api/`
 * Already developed nextjs frontend project `../../front`
 * You will find project specific `AGENTS` file in their respective folder
+* You can find the assets at `../../Assets` folder
 
 
 # Project Notes
