@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    POS terminals routinely talk to an on-premise server over plain HTTP on the
+    restaurant's LAN, and to 10.0.2.2 (the host machine) from the Android
+    emulator during development. Android 9+ blocks cleartext by default, so it
+    is permitted here.
+
+    Hardening note: for an internet-facing production deployment, set
+    cleartextTrafficPermitted="false" on the base config and list only the
+    specific LAN hosts that need HTTP under <domain-config>.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+            <!-- Lets a venue's own private CA be installed on the terminal. -->
+            <certificates src="user"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>
