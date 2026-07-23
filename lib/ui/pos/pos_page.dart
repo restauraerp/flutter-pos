@@ -445,20 +445,30 @@ class _OrderColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // In the sheet the whole column scrolls; in the side panel the cart list
-    // scrolls on its own so the totals stay pinned.
+    // On the phone sheet the order settings scroll in the upper region while
+    // the cart — with its pinned "Place Order" footer — fills the lower region,
+    // so the checkout button is always on screen. (Previously the cart sat in a
+    // fixed-height box stacked below the settings, which pushed the button off
+    // the bottom of the sheet and made it look like there was no way to place an
+    // order.) In the side panel the cart list scrolls on its own so the totals
+    // stay pinned.
     if (scrollController != null) {
-      return ListView(
-        controller: scrollController,
-        padding: EdgeInsets.zero,
+      return Column(
         children: [
-          const OrderSettingsPanel(),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 480,
-            child: CartPanel(onOrderPlaced: onOrderPlaced),
+          Flexible(
+            flex: 5,
+            child: SingleChildScrollView(
+              controller: scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              child: const OrderSettingsPanel(),
+            ),
           ),
           const SizedBox(height: 10),
+          Expanded(
+            flex: 6,
+            child: CartPanel(onOrderPlaced: onOrderPlaced),
+          ),
         ],
       );
     }

@@ -8,6 +8,7 @@ import '../../state/orders_controller.dart';
 import '../../state/pos_controller.dart';
 import '../../state/auth_controller.dart';
 import '../../services/ticket_printer.dart';
+import '../print/print_ticket.dart';
 import '../theme.dart';
 import 'widgets/order_card.dart';
 import 'widgets/payment_sheet.dart';
@@ -81,27 +82,9 @@ class _OrdersView extends StatelessWidget {
     BuildContext context,
     OrderModel order, {
     required bool kitchen,
-  }) async {
-    final pos = context.read<PosController>();
-    final messenger = ScaffoldMessenger.of(context);
-
-    try {
-      if (kitchen) {
-        await TicketPrinter.printKitchenTicket(order);
-      } else {
-        await TicketPrinter.printReceipt(
-          order,
-          VenueDetails.fromSettings(pos.settings),
-        );
-      }
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Could not print: $e'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-    }
+  }) {
+    final venue = VenueDetails.fromSettings(context.read<PosController>().settings);
+    return printOrderTicket(context, order: order, venue: venue, kitchen: kitchen);
   }
 
   Future<void> _cancel(BuildContext context, OrderModel order) async {
