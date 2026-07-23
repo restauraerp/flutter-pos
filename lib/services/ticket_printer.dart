@@ -42,9 +42,14 @@ class VenueDetails {
 class TicketPrinter {
   const TicketPrinter._();
 
-  /// 58mm rolls are also common; swap this for `PdfPageFormat.roll57` if the
-  /// venue uses narrow paper.
-  static const PdfPageFormat _roll = PdfPageFormat.roll80;
+  /// The MPT-II (and most handheld Bluetooth POS printers) use a 58mm roll,
+  /// whose printable area is ~48mm. `roll57` matches that; switch to `roll80`
+  /// if a venue runs the wider 80mm desktop paper.
+  static const PdfPageFormat _roll = PdfPageFormat.roll57;
+
+  /// Characters in a full-width dashed rule. Tuned to the 58mm printable width
+  /// so the line fills the paper without overflowing and clipping mid-dash.
+  static const int _dashCount = 32;
 
   static pw.Font? _regular;
 
@@ -248,7 +253,7 @@ class TicketPrinter {
                           ),
                         ),
                         pw.SizedBox(
-                          width: 24,
+                          width: 20,
                           child: pw.Text(
                             '${item.quantity}',
                             textAlign: pw.TextAlign.center,
@@ -256,7 +261,7 @@ class TicketPrinter {
                           ),
                         ),
                         pw.SizedBox(
-                          width: 58,
+                          width: 50,
                           child: pw.Text(
                             money(item.price * item.quantity),
                             textAlign: pw.TextAlign.right,
@@ -353,7 +358,7 @@ class TicketPrinter {
   /// A dashed rule, drawn as repeated hyphens so it survives on any thermal
   /// printer regardless of how it renders vector strokes.
   static pw.Widget _dashed() => pw.Text(
-    '-' * 48,
+    '-' * _dashCount,
     maxLines: 1,
     overflow: pw.TextOverflow.clip,
     style: const pw.TextStyle(fontSize: 8),
