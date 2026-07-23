@@ -1,7 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../data/models/models.dart';
 
@@ -34,15 +35,21 @@ class VenueDetails {
 /// Builds and prints the two thermal documents a POS produces: the kitchen
 /// order ticket and the customer receipt.
 ///
-/// Both are laid out for an 80mm roll and handed to the platform print dialog
-/// (Android print service, AirPrint, CUPS, Windows), which is where a thermal
-/// printer appears once it is installed on the device.
+/// Both are laid out for an 80mm roll and returned as PDF bytes. The UI hands
+/// them to an in-app [PdfPreview] page (see `PdfPreviewPage`), whose Print
+/// action opens the platform print dialog (Android print service, AirPrint,
+/// CUPS, Windows) — where a thermal printer appears once it is installed.
 class TicketPrinter {
   const TicketPrinter._();
 
-  /// 58mm rolls are also common; swap this for `PdfPageFormat.roll57` if the
-  /// venue uses narrow paper.
-  static const PdfPageFormat _roll = PdfPageFormat.roll80;
+  /// The MPT-II (and most handheld Bluetooth POS printers) use a 58mm roll,
+  /// whose printable area is ~48mm. `roll57` matches that; switch to `roll80`
+  /// if a venue runs the wider 80mm desktop paper.
+  static const PdfPageFormat _roll = PdfPageFormat.roll57;
+
+  /// Characters in a full-width dashed rule. Tuned to the 58mm printable width
+  /// so the line fills the paper without overflowing and clipping mid-dash.
+  static const int _dashCount = 32;
 
   static pw.Font? _regular;
 
@@ -57,8 +64,9 @@ class TicketPrinter {
     return font;
   }
 
-  /// Kitchen Order Ticket — what to cook, with no prices.
-  static Future<void> printKitchenTicket(OrderModel order) async {
+  /// Kitchen Order Ticket — what to cook, with no prices. Returns the PDF bytes
+  /// for previewing/printing.
+  static Future<Uint8List> buildKitchenTicket(OrderModel order) async {
     final font = await _font();
     final doc = pw.Document();
 
@@ -159,14 +167,15 @@ class TicketPrinter {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (_) => doc.save(),
-      name: 'KOT-${order.id}',
-    );
+    return doc.save();
   }
 
-  /// Customer receipt — itemised, with totals and payment method.
-  static Future<void> printReceipt(OrderModel order, VenueDetails venue) async {
+  /// Customer receipt — itemised, with totals and payment method. Returns the
+  /// PDF bytes for previewing/printing.
+  static Future<Uint8List> buildReceipt(
+    OrderModel order,
+    VenueDetails venue,
+  ) async {
     final font = await _font();
     final doc = pw.Document();
     String money(double v) => '${venue.currency}${v.toStringAsFixed(2)}';
@@ -244,7 +253,7 @@ class TicketPrinter {
                           ),
                         ),
                         pw.SizedBox(
-                          width: 24,
+                          width: 20,
                           child: pw.Text(
                             '${item.quantity}',
                             textAlign: pw.TextAlign.center,
@@ -252,7 +261,7 @@ class TicketPrinter {
                           ),
                         ),
                         pw.SizedBox(
-                          width: 58,
+                          width: 50,
                           child: pw.Text(
                             money(item.price * item.quantity),
                             textAlign: pw.TextAlign.right,
@@ -324,10 +333,7 @@ class TicketPrinter {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (_) => doc.save(),
-      name: 'Receipt-${order.id}',
-    );
+    return doc.save();
   }
 
   static pw.Widget _row(
@@ -352,7 +358,7 @@ class TicketPrinter {
   /// A dashed rule, drawn as repeated hyphens so it survives on any thermal
   /// printer regardless of how it renders vector strokes.
   static pw.Widget _dashed() => pw.Text(
-    '-' * 48,
+    '-' * _dashCount,
     maxLines: 1,
     overflow: pw.TextOverflow.clip,
     style: const pw.TextStyle(fontSize: 8),

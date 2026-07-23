@@ -7,6 +7,7 @@ import '../../../data/models/models.dart';
 import '../../../state/pos_controller.dart';
 import '../../../data/repositories/pos_repository.dart';
 import '../../../services/ticket_printer.dart';
+import '../../print/print_ticket.dart';
 import '../../theme.dart';
 import 'discount_field.dart';
 
@@ -540,8 +541,8 @@ class _OrderPlacedDialog extends StatefulWidget {
 class _OrderPlacedDialogState extends State<_OrderPlacedDialog> {
   bool _printing = false;
 
-  /// Checkout only returns the new id, so the full order is fetched here to
-  /// print it.
+  /// Checkout only returns the new id, so the full order is fetched here before
+  /// sending it to the printer.
   Future<void> _print({required bool kitchen}) async {
     setState(() => _printing = true);
 
@@ -551,14 +552,15 @@ class _OrderPlacedDialogState extends State<_OrderPlacedDialog> {
 
     try {
       final order = await repository.order(widget.orderId);
-      if (kitchen) {
-        await TicketPrinter.printKitchenTicket(order);
-      } else {
-        await TicketPrinter.printReceipt(
-          order,
-          VenueDetails.fromSettings(pos.settings),
-        );
-      }
+      if (!mounted) return;
+      final venue = VenueDetails.fromSettings(pos.settings);
+
+      await printOrderTicket(
+        context,
+        order: order,
+        venue: venue,
+        kitchen: kitchen,
+      );
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
