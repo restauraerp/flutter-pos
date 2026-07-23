@@ -2,6 +2,16 @@
     <!-- The terminal is useless without a connection to the RestoraERP API. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Bluetooth thermal printing (MPT-II and similar 58mm printers). -->
+    <!-- Android 11 and below. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
+    <!-- Android 12+. neverForLocation: we only talk to an already-paired
+         printer, so this is not used to derive physical location. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"/>
+
     <application
         android:label="RestoraERP POS"
         android:name="${applicationName}"
