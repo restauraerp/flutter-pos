@@ -317,6 +317,20 @@ class PosController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sets an exact quantity, for the tap-to-type entry on a cart line. A value
+  /// of zero or less removes the line, matching [updateQty].
+  void setQty(int productId, int qty) {
+    final index = _cart.indexWhere((i) => i.id == productId);
+    if (index < 0) return;
+
+    if (qty <= 0) {
+      _cart.removeAt(index);
+    } else {
+      _cart[index].qty = qty;
+    }
+    notifyListeners();
+  }
+
   void removeItem(int productId) {
     _cart.removeWhere((i) => i.id == productId);
     notifyListeners();

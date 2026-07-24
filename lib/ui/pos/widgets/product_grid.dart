@@ -5,8 +5,32 @@ import '../../../data/models/models.dart';
 import '../../../state/pos_controller.dart';
 import '../../theme.dart';
 
+/// Matches `_wideBreakpoint` in `pos_page.dart`: at or above it the cart is
+/// always on screen, so tapping a product needs no extra confirmation.
+const double _wideBreakpoint = 900;
+
 class ProductGrid extends StatelessWidget {
   const ProductGrid({super.key});
+
+  /// Adds to the cart and, on phones where the cart is tucked into a bottom
+  /// sheet, flashes a brief confirmation so the tap doesn't feel like it was
+  /// swallowed.
+  void _addToCart(BuildContext context, ProductModel product) {
+    context.read<PosController>().addToCart(product);
+
+    if (MediaQuery.of(context).size.width >= _wideBreakpoint) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Added ${product.name}'),
+        duration: const Duration(milliseconds: 900),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.primary,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +67,7 @@ class ProductGrid extends StatelessWidget {
       itemBuilder: (context, index) => _ProductCard(
         product: products[index],
         currency: pos.currency,
-        onTap: () => pos.addToCart(products[index]),
+        onTap: () => _addToCart(context, products[index]),
       ),
     );
   }

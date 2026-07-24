@@ -76,10 +76,15 @@ class _LoginPageState extends State<LoginPage> {
                             hintText: 'manager@example.com',
                             prefixIcon: Icon(Icons.mail_outline, size: 18),
                           ),
-                          validator: (v) =>
-                              (v == null || v.trim().isEmpty)
-                              ? 'Email is required'
-                              : null,
+                          validator: (v) {
+                            final value = v?.trim() ?? '';
+                            if (value.isEmpty) return 'Email is required';
+                            if (!value.contains('@') ||
+                                !value.contains('.')) {
+                              return 'Enter a valid email';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 14),
 

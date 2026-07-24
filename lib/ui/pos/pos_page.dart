@@ -367,6 +367,28 @@ class _HeldOrdersBar extends StatelessWidget {
 
   final PosController pos;
 
+  Future<void> _confirmDiscard(BuildContext context, int id) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Discard held order?'),
+        content: const Text('This held order will be permanently removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (proceed == true) pos.discardHeldOrder(id);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -394,13 +416,10 @@ class _HeldOrdersBar extends StatelessWidget {
             children: pos.heldOrders.map((order) {
               return InkWell(
                 onTap: () => pos.recallOrder(order.id),
-                onLongPress: () => pos.discardHeldOrder(order.id),
+                onLongPress: () => _confirmDiscard(context, order.id),
                 borderRadius: BorderRadius.circular(AppRadius.selector),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     border: Border.all(color: AppColors.warningBorder),
@@ -411,7 +430,7 @@ class _HeldOrdersBar extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.play_arrow,
-                        size: 12,
+                        size: 14,
                         color: AppColors.warningText,
                       ),
                       const SizedBox(width: 4),
@@ -421,6 +440,19 @@ class _HeldOrdersBar extends StatelessWidget {
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
                           color: AppColors.warningText,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      InkWell(
+                        onTap: () => _confirmDiscard(context, order.id),
+                        borderRadius: BorderRadius.circular(20),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close,
+                            size: 14,
+                            color: AppColors.warningText,
+                          ),
                         ),
                       ),
                     ],
