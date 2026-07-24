@@ -445,41 +445,39 @@ class _OrderColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On the phone sheet the order settings scroll in the upper region while
-    // the cart — with its pinned "Place Order" footer — fills the lower region,
-    // so the checkout button is always on screen. (Previously the cart sat in a
-    // fixed-height box stacked below the settings, which pushed the button off
-    // the bottom of the sheet and made it look like there was no way to place an
-    // order.) In the side panel the cart list scrolls on its own so the totals
-    // stay pinned.
-    if (scrollController != null) {
-      return Column(
-        children: [
-          Flexible(
-            flex: 5,
-            child: SingleChildScrollView(
-              controller: scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              child: const OrderSettingsPanel(),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Expanded(
-            flex: 6,
-            child: CartPanel(onOrderPlaced: onOrderPlaced),
-          ),
-        ],
-      );
-    }
+    // Both phone sheet and tablet side panel use a flexible layout. The settings
+    // scroll if they exceed their flex share, and the cart fills the rest,
+    // so the checkout button is always on screen.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // If we are in the tablet side panel and space is tight, collapse the
+        // settings by default and give the cart the lion's share of the vertical space.
+        final isShortTablet = scrollController == null && constraints.maxHeight < 750;
 
-    return Column(
-      children: [
-        const OrderSettingsPanel(),
-        const SizedBox(height: 10),
-        Expanded(child: CartPanel(onOrderPlaced: onOrderPlaced)),
-        const SizedBox(height: 10),
-      ],
+        return Column(
+          children: [
+            Flexible(
+              flex: isShortTablet ? 1 : 5,
+              child: SingleChildScrollView(
+                controller: scrollController,
+                physics: scrollController != null
+                    ? const AlwaysScrollableScrollPhysics()
+                    : null,
+                padding: EdgeInsets.zero,
+                child: OrderSettingsPanel(
+                  initiallyExpanded: !isShortTablet,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              flex: isShortTablet ? 3 : 6,
+              child: CartPanel(onOrderPlaced: onOrderPlaced),
+            ),
+            if (scrollController == null) const SizedBox(height: 10),
+          ],
+        );
+      },
     );
   }
 }

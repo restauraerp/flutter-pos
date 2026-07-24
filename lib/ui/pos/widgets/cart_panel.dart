@@ -59,22 +59,47 @@ class CartPanel extends StatelessWidget {
         border: Border.all(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          _CartHeader(pos: pos),
-          Expanded(
-            child: pos.cart.isEmpty
-                ? const _EmptyCart()
-                : ListView.separated(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTooShort = constraints.maxHeight < 350;
+
+          final content = Column(
+            children: [
+              _CartHeader(pos: pos),
+              if (isTooShort)
+                if (pos.cart.isEmpty)
+                  const SizedBox(height: 100, child: _EmptyCart())
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(8),
                     itemCount: pos.cart.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 6),
                     itemBuilder: (context, index) =>
                         _CartLine(item: pos.cart[index], pos: pos),
-                  ),
-          ),
-          _CartFooter(pos: pos, onCheckout: () => _checkout(context)),
-        ],
+                  )
+              else
+                Expanded(
+                  child: pos.cart.isEmpty
+                      ? const _EmptyCart()
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(8),
+                          itemCount: pos.cart.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 6),
+                          itemBuilder: (context, index) =>
+                              _CartLine(item: pos.cart[index], pos: pos),
+                        ),
+                ),
+              _CartFooter(pos: pos, onCheckout: () => _checkout(context)),
+            ],
+          );
+
+          if (isTooShort) {
+            return SingleChildScrollView(child: content);
+          }
+          return content;
+        },
       ),
     );
   }
