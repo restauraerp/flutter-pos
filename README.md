@@ -58,7 +58,7 @@ Presets live in `lib/core/config/app_config.dart`:
 | --------- | --------------------------------------- |
 | `dev`     | `http://10.0.2.2:8029/api/v1`           |
 | `staging` | `https://staging.restauraerp.com/api/v1`|
-| `prod`    | `https://restauraerp.com/api/v1`        |
+| `prod`    | `https://app.restauraerp.com/api/v1`        |
 
 Non-production builds show an environment badge on the setup and login screens so
 a staging terminal is never mistaken for a live one.
