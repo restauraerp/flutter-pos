@@ -1,0 +1,141 @@
+name: Release APK
+
+# Pushing a vX.YY.ZZ tag (which ./publish.sh does) builds the production APK and
+# attaches it to a GitHub release as a raw .apk -- a direct download that installs
+# on device without unzipping. Release assets are served verbatim; only
+# actions/upload-artifact would wrap the file in a zip, so the tagged path never
+# uses it.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or SHA to build (defaults to the current branch)'
+        required: false
+        type: string
+
+# Needed by the release step to create the release and upload the APK.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.38.7'
+  JAVA_VERSION: '17'
+  # Exposed as env so the steps below can test for presence -- an unset secret is
+  # an empty string here, which `if:` can check.
+  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve version from pubspec.yaml
+        id: version
+        run: |
+          chmod +x tool/version.sh
+          {
+            echo "name=$(./tool/version.sh name)"
+            echo "code=$(./tool/version.sh code)"
+            echo "tag=v$(./tool/version.sh name)"
+          } >> "$GITHUB_OUTPUT"
+
+      # A tag that disagrees with pubspec.yaml would ship an APK whose versionName
+      # contradicts its release. Fail loudly instead.
+      - name: Verify tag matches pubspec version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: ./tool/version.sh check "${GITHUB_REF_NAME}"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Optional: configure the four ANDROID_KEYSTORE_* secrets to sign with a real
+      # upload key. Without them the build falls back to the debug key (see
+      # android/app/build.gradle.kts) and still produces an installable APK.
+      - name: Configure release signing
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          echo "Release keystore configured."
+
+      - name: Report signing mode
+        run: |
+          if [ -f android/key.properties ]; then
+            echo "Signing with the release keystore."
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret set - signing with the debug key. The APK installs, but cannot upgrade an install signed by a different debug key; uninstall first."
+          fi
+
+      - name: Build release APK
+        run: flutter build apk --release --dart-define=APP_ENV=prod
+
+      - name: Stage the APK under its release name
+        id: apk
+        run: |
+          mkdir -p dist
+          APK="dist/restauraerp-pos-${{ steps.version.outputs.tag }}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK"
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          ls -lh "$APK"
+
+      # Tagged builds: a real release with the .apk attached as a direct download.
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ${{ steps.apk.outputs.path }}
+          body: |
+            **RestoraERP POS ${{ steps.version.outputs.tag }}**
+
+            versionName `${{ steps.version.outputs.name }}` · versionCode `${{ steps.version.outputs.code }}` · `APP_ENV=prod`
+
+            Download `restauraerp-pos-${{ steps.version.outputs.tag }}.apk` below and open it on the device to install.
+            Android will ask you to allow installs from this source the first time.
+
+      # Manual runs are not releases, so the APK goes up as a workflow artifact.
+      # GitHub zips artifacts on download -- for an installable file, build from a tag.
+      - name: Upload APK artifact (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: restauraerp-pos-${{ steps.version.outputs.tag }}-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error

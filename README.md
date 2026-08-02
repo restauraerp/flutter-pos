@@ -78,6 +78,101 @@ To stop field terminals from being re-pointed at another server, add
 `--dart-define=LOCK_SERVER_URL=true`. That hides the "Change" action and disables
 the setup field, so the build-time URL is the only one available.
 
+## Releasing
+
+### Version scheme
+
+`pubspec.yaml` holds the only version in the project. The git tag, the Android
+`versionName`/`versionCode`, the APK filename and the GitHub release are all
+derived from it — nothing else declares a version of its own.
+
+```
+version: 1.00.02+3
+         │ │  │  └── build number, monotonic, never reset → Android versionCode
+         │ │  └───── patch, zero-padded to 2 digits
+         │ └──────── minor, zero-padded to 2 digits
+         └────────── major
+```
+
+The zero padding matches the existing `v1.00.00` / `v1.00.01` tags. Dart's
+`pub_semver` preserves the literal text of a parsed version, so `flutter build`
+emits `1.00.02` verbatim — verified against the built APK's manifest.
+
+`tool/version.sh` is the only supported way to touch it:
+
+```bash
+./tool/version.sh current        # 1.00.02+3
+./tool/version.sh name           # 1.00.02
+./tool/version.sh code           # 3
+./tool/version.sh tag            # v1.00.02
+./tool/version.sh next patch     # what a patch bump gives, without writing
+./tool/version.sh bump minor     # bump + write pubspec.yaml
+./tool/version.sh check v1.00.02 # fail unless the tag matches pubspec
+```
+
+A bump always increments the build number, so `versionCode` rises even for a
+major or minor release. `minor` and `patch` are capped at 99 — the scripts refuse
+to silently break the two-digit format.
+
+### Cutting a release
+
+```bash
+./release.sh [patch|minor|major]   # default: patch
+# …verify the release branch…
+./publish.sh "Release v1.00.02"
+```
+
+`release.sh` refuses to run unless you are on `develop`, the tree is clean, and
+`develop` is not behind `origin`. It then bumps `pubspec.yaml`, opens
+`release/vX.YY.ZZ`, commits the bump and publishes the branch.
+
+`publish.sh` finishes the git flow release, tags it `vX.YY.ZZ`, and pushes
+`develop`, `master` and the tag. **The tag push is what triggers the build.**
+
+### What CI produces
+
+`.github/workflows/release.yml` runs on every `v*` tag push. It verifies the tag
+matches `pubspec.yaml`, builds with `--dart-define=APP_ENV=prod`, and attaches
+`restauraerp-pos-vX.YY.ZZ.apk` to a GitHub release:
+
+```
+https://github.com/restauraerp/flutter-pos/releases/tag/vX.YY.ZZ
+```
+
+That asset is a raw `.apk` served verbatim — open it on the device to install, no
+unzipping. (GitHub zips *workflow artifacts* on download, which is why tagged
+builds publish a release asset instead. The manual `workflow_dispatch` run is the
+one exception: it has no tag to release against, so it uploads a zipped artifact
+and is only meant for test builds.)
+
+### Signing
+
+Release builds are currently **signed with the debug key**. They install fine,
+but the debug key differs per machine and per CI runner, so a new build will not
+replace an existing install — uninstall the old one first.
+
+The keystore path is already wired. To switch to stable signing, create a
+keystore and add four repository secrets; no code changes are needed:
+
+```bash
+keytool -genkey -v -keystore upload-keystore.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+base64 -w0 upload-keystore.jks    # → ANDROID_KEYSTORE_BASE64
+```
+
+| Secret | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | base64 of `upload-keystore.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | store password |
+| `ANDROID_KEY_ALIAS` | `upload` |
+| `ANDROID_KEY_PASSWORD` | key password |
+
+Once `ANDROID_KEYSTORE_BASE64` is set, CI writes `android/key.properties` and
+`android/app/build.gradle.kts` picks up the release config automatically; with it
+unset the build falls back to the debug key and logs a warning. Locally, create
+`android/key.properties` yourself to sign with a real key — it and `*.jks` are
+gitignored. Back the keystore up: losing it means a new application identity.
+
 ## Terminal setup and server management
 
 The build-time URL is only a *default*. On first launch the terminal shows a setup
