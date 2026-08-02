@@ -59,22 +59,47 @@ class CartPanel extends StatelessWidget {
         border: Border.all(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          _CartHeader(pos: pos),
-          Expanded(
-            child: pos.cart.isEmpty
-                ? const _EmptyCart()
-                : ListView.separated(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTooShort = constraints.maxHeight < 350;
+
+          final content = Column(
+            children: [
+              _CartHeader(pos: pos),
+              if (isTooShort)
+                if (pos.cart.isEmpty)
+                  const SizedBox(height: 100, child: _EmptyCart())
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(8),
                     itemCount: pos.cart.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 6),
                     itemBuilder: (context, index) =>
                         _CartLine(item: pos.cart[index], pos: pos),
-                  ),
-          ),
-          _CartFooter(pos: pos, onCheckout: () => _checkout(context)),
-        ],
+                  )
+              else
+                Expanded(
+                  child: pos.cart.isEmpty
+                      ? const _EmptyCart()
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(8),
+                          itemCount: pos.cart.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 6),
+                          itemBuilder: (context, index) =>
+                              _CartLine(item: pos.cart[index], pos: pos),
+                        ),
+                ),
+              _CartFooter(pos: pos, onCheckout: () => _checkout(context)),
+            ],
+          );
+
+          if (isTooShort) {
+            return SingleChildScrollView(child: content);
+          }
+          return content;
+        },
       ),
     );
   }
@@ -84,6 +109,32 @@ class _CartHeader extends StatelessWidget {
   const _CartHeader({required this.pos});
 
   final PosController pos;
+
+  /// A whole order is too much to lose to a stray tap, so clearing confirms —
+  /// the same guard the logout and cancel-order flows use.
+  Future<void> _confirmClear(BuildContext context) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear order?'),
+        content: const Text(
+          'All items in the current order will be removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (proceed == true) pos.clearCart();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +166,7 @@ class _CartHeader extends StatelessWidget {
               background: AppColors.dangerBg,
               border: AppColors.dangerBorder,
               foreground: AppColors.danger,
-              onTap: pos.clearCart,
+              onTap: () => _confirmClear(context),
             ),
           ],
         ],
@@ -220,6 +271,44 @@ class _CartLineState extends State<_CartLine> {
     super.dispose();
   }
 
+  /// Tap-to-type quantity, so a large count is one entry instead of many taps.
+  Future<void> _editQty() async {
+    final controller = TextEditingController(text: '${widget.item.qty}');
+    final result = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          widget.item.product.name,
+          style: const TextStyle(fontSize: 15),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          decoration: const InputDecoration(labelText: 'Quantity'),
+          onSubmitted: (v) =>
+              Navigator.of(dialogContext).pop(int.tryParse(v.trim())),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(
+              dialogContext,
+            ).pop(int.tryParse(controller.text.trim())),
+            child: const Text('Set'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result != null) widget.pos.setQty(widget.item.id, result);
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -263,14 +352,20 @@ class _CartLineState extends State<_CartLine> {
                 icon: Icons.remove,
                 onTap: () => pos.updateQty(item.id, -1),
               ),
-              SizedBox(
-                width: 26,
-                child: Text(
-                  '${item.qty}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+              InkWell(
+                onTap: _editQty,
+                borderRadius: BorderRadius.circular(AppRadius.selector),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${item.qty}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -291,12 +386,13 @@ class _CartLineState extends State<_CartLine> {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.sticky_note_2_outlined, size: 15),
+                icon: const Icon(Icons.sticky_note_2_outlined, size: 18),
                 color: item.notes.isNotEmpty
                     ? AppColors.primary
                     : AppColors.textMuted,
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.only(left: 4),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
                 tooltip: 'Item note',
                 onPressed: () =>
                     setState(() => _editingNotes = !_editingNotes),
@@ -354,14 +450,14 @@ class _QtyButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.selector),
       child: Container(
-        width: 28,
-        height: 28,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           color: AppColors.surface,
           border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(AppRadius.selector),
         ),
-        child: Icon(icon, size: 13, color: AppColors.textPrimary),
+        child: Icon(icon, size: 18, color: AppColors.textPrimary),
       ),
     );
   }

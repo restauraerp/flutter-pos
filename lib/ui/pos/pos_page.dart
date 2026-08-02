@@ -367,6 +367,28 @@ class _HeldOrdersBar extends StatelessWidget {
 
   final PosController pos;
 
+  Future<void> _confirmDiscard(BuildContext context, int id) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Discard held order?'),
+        content: const Text('This held order will be permanently removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (proceed == true) pos.discardHeldOrder(id);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -394,13 +416,10 @@ class _HeldOrdersBar extends StatelessWidget {
             children: pos.heldOrders.map((order) {
               return InkWell(
                 onTap: () => pos.recallOrder(order.id),
-                onLongPress: () => pos.discardHeldOrder(order.id),
+                onLongPress: () => _confirmDiscard(context, order.id),
                 borderRadius: BorderRadius.circular(AppRadius.selector),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     border: Border.all(color: AppColors.warningBorder),
@@ -411,7 +430,7 @@ class _HeldOrdersBar extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.play_arrow,
-                        size: 12,
+                        size: 14,
                         color: AppColors.warningText,
                       ),
                       const SizedBox(width: 4),
@@ -421,6 +440,19 @@ class _HeldOrdersBar extends StatelessWidget {
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
                           color: AppColors.warningText,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      InkWell(
+                        onTap: () => _confirmDiscard(context, order.id),
+                        borderRadius: BorderRadius.circular(20),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close,
+                            size: 14,
+                            color: AppColors.warningText,
+                          ),
                         ),
                       ),
                     ],
@@ -445,41 +477,39 @@ class _OrderColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On the phone sheet the order settings scroll in the upper region while
-    // the cart — with its pinned "Place Order" footer — fills the lower region,
-    // so the checkout button is always on screen. (Previously the cart sat in a
-    // fixed-height box stacked below the settings, which pushed the button off
-    // the bottom of the sheet and made it look like there was no way to place an
-    // order.) In the side panel the cart list scrolls on its own so the totals
-    // stay pinned.
-    if (scrollController != null) {
-      return Column(
-        children: [
-          Flexible(
-            flex: 5,
-            child: SingleChildScrollView(
-              controller: scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              child: const OrderSettingsPanel(),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Expanded(
-            flex: 6,
-            child: CartPanel(onOrderPlaced: onOrderPlaced),
-          ),
-        ],
-      );
-    }
+    // Both phone sheet and tablet side panel use a flexible layout. The settings
+    // scroll if they exceed their flex share, and the cart fills the rest,
+    // so the checkout button is always on screen.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // If we are in the tablet side panel and space is tight, collapse the
+        // settings by default and give the cart the lion's share of the vertical space.
+        final isShortTablet = scrollController == null && constraints.maxHeight < 750;
 
-    return Column(
-      children: [
-        const OrderSettingsPanel(),
-        const SizedBox(height: 10),
-        Expanded(child: CartPanel(onOrderPlaced: onOrderPlaced)),
-        const SizedBox(height: 10),
-      ],
+        return Column(
+          children: [
+            Flexible(
+              flex: isShortTablet ? 1 : 5,
+              child: SingleChildScrollView(
+                controller: scrollController,
+                physics: scrollController != null
+                    ? const AlwaysScrollableScrollPhysics()
+                    : null,
+                padding: EdgeInsets.zero,
+                child: OrderSettingsPanel(
+                  initiallyExpanded: !isShortTablet,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              flex: isShortTablet ? 3 : 6,
+              child: CartPanel(onOrderPlaced: onOrderPlaced),
+            ),
+            if (scrollController == null) const SizedBox(height: 10),
+          ],
+        );
+      },
     );
   }
 }

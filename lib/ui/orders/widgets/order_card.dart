@@ -297,8 +297,10 @@ class _TimerRowState extends State<_TimerRow> {
   void initState() {
     super.initState();
     if (widget.order.createdAt != null) {
+      // Minute-granularity ageing: a ticking seconds counter on every card just
+      // adds noise and needless rebuilds across a full queue.
       _timer = Timer.periodic(
-        const Duration(seconds: 1),
+        const Duration(seconds: 30),
         (_) => setState(() {}),
       );
     }
@@ -314,11 +316,10 @@ class _TimerRowState extends State<_TimerRow> {
     final placed = widget.order.createdAt;
     if (placed == null) return '—';
     final diff = DateTime.now().difference(placed);
-    if (diff.isNegative) return '0m 0s';
+    if (diff.inMinutes < 1) return 'just now';
     final h = diff.inHours;
     final m = diff.inMinutes % 60;
-    final s = diff.inSeconds % 60;
-    return h > 0 ? '${h}h ${m}m' : '${m}m ${s}s';
+    return h > 0 ? '${h}h ${m}m' : '${m}m';
   }
 
   @override

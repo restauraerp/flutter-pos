@@ -25,7 +25,7 @@ class AppConfig {
   static const Map<String, String> _presets = <String, String>{
     'dev': 'http://10.0.2.2:8029/api/v1',
     'staging': 'https://staging.restauraerp.com/api/v1',
-    'prod': 'https://restauraerp.com/api/v1',
+    'prod': 'https://app.restauraerp.com/api/v1',
   };
 
   static String get environment => _envName;

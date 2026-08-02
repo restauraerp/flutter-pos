@@ -10,14 +10,16 @@ import 'table_selector.dart';
 
 /// Collapsible panel holding order type, table, delivery details, and customer.
 class OrderSettingsPanel extends StatefulWidget {
-  const OrderSettingsPanel({super.key});
+  const OrderSettingsPanel({super.key, this.initiallyExpanded = true});
+
+  final bool initiallyExpanded;
 
   @override
   State<OrderSettingsPanel> createState() => _OrderSettingsPanelState();
 }
 
 class _OrderSettingsPanelState extends State<OrderSettingsPanel> {
-  bool _expanded = true;
+  late bool _expanded = widget.initiallyExpanded;
   final _deliveryChargeController = TextEditingController();
   final _addressController = TextEditingController();
 
