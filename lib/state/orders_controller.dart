@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../core/api/api_client.dart';
-import '../core/config/app_config.dart';
 import '../data/models/models.dart';
 import '../data/repositories/pos_repository.dart';
 
@@ -29,6 +28,21 @@ class OrdersController extends ChangeNotifier {
   OrdersController(this._repository);
 
   final PosRepository _repository;
+
+  /// The restaurant's own combined tax rate, set by whoever loaded it.
+  ///
+  /// Defaulted to zero rather than a guess: charging a rate nobody configured
+  /// is how the till came to quote 10% while the server computed something
+  /// else. No rate means no tax, which is what the server does too.
+  double _taxRate = 0;
+
+  double get taxRate => _taxRate;
+
+  set taxRate(double rate) {
+    if (rate == _taxRate) return;
+    _taxRate = rate;
+    notifyListeners();
+  }
 
   /// The web screen polls every 10 seconds; a POS terminal needs the same
   /// liveness so the kitchen and the till stay in step.
@@ -157,6 +171,7 @@ class OrdersController extends ChangeNotifier {
     required OrderModel order,
     required PaymentMethod method,
     required DiscountModel? discount,
+    String? note,
   }) {
     final totals = totalsFor(order, discount);
     return _mutate(
@@ -169,9 +184,30 @@ class OrdersController extends ChangeNotifier {
         taxAmount: totals.tax,
         deliveryCharge: order.deliveryCharge,
         total: totals.total,
+        paymentNote: note,
       ),
     );
   }
+
+  /// Lets an order leave unpaid, to be collected later.
+  Future<void> markDue(OrderModel order, String note) =>
+      _mutate(order.id, () => _repository.markOrderDue(order.id, note));
+
+  /// Records money collected against a due order, in part or in full.
+  Future<void> settle(
+    OrderModel order, {
+    required double amount,
+    required String method,
+    String? note,
+  }) => _mutate(
+    order.id,
+    () => _repository.settleOrder(
+      orderId: order.id,
+      amount: amount,
+      method: method,
+      note: note,
+    ),
+  );
 
   /// Recomputes an order's totals for a coupon applied at the till, using the
   /// same arithmetic as the POS screen.
@@ -181,7 +217,7 @@ class OrdersController extends ChangeNotifier {
   ) {
     final discountAmount = discount?.amountFor(order.subtotal) ?? 0;
     final afterDiscount = order.subtotal - discountAmount;
-    final tax = afterDiscount * AppConfig.taxRate;
+    final tax = afterDiscount * _taxRate;
     return (
       discount: discountAmount,
       tax: tax,

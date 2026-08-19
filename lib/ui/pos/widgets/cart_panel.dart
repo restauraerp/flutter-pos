@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/api/api_client.dart';
-import '../../../core/config/app_config.dart';
 import '../../../data/models/models.dart';
 import '../../../state/pos_controller.dart';
 import '../../../data/repositories/pos_repository.dart';
 import '../../../services/ticket_printer.dart';
 import '../../print/print_ticket.dart';
 import '../../theme.dart';
+import '../../../core/sales/discount_calculator.dart';
 import 'discount_field.dart';
 
 /// The current order: line items, totals, and checkout.
@@ -261,13 +261,18 @@ class _CartLine extends StatefulWidget {
 
 class _CartLineState extends State<_CartLine> {
   bool _editingNotes = false;
+  bool _editingDiscount = false;
   late final TextEditingController _notesController = TextEditingController(
     text: widget.item.notes,
+  );
+  late final TextEditingController _discountController = TextEditingController(
+    text: widget.item.discountValue?.toString() ?? '',
   );
 
   @override
   void dispose() {
     _notesController.dispose();
+    _discountController.dispose();
     super.dispose();
   }
 
@@ -385,6 +390,20 @@ class _CartLineState extends State<_CartLine> {
                   ),
                 ),
               ),
+              // "The steak came out cold, take 200 off it." Priced by the
+              // server; this records what the cashier chose.
+              IconButton(
+                icon: const Icon(Icons.local_offer_outlined, size: 18),
+                color: item.discountValue != null
+                    ? AppColors.success
+                    : AppColors.textMuted,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Discount this item',
+                onPressed: () =>
+                    setState(() => _editingDiscount = !_editingDiscount),
+              ),
               IconButton(
                 icon: const Icon(Icons.sticky_note_2_outlined, size: 18),
                 color: item.notes.isNotEmpty
@@ -415,6 +434,64 @@ class _CartLineState extends State<_CartLine> {
                   ),
                 ),
                 style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          if (_editingDiscount)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  DropdownButton<DiscountKind>(
+                    value: item.discountKind ?? DiscountKind.percent,
+                    isDense: true,
+                    underline: const SizedBox.shrink(),
+                    items: [
+                      const DropdownMenuItem(
+                        value: DiscountKind.percent,
+                        child: Text('%', style: TextStyle(fontSize: 12)),
+                      ),
+                      DropdownMenuItem(
+                        value: DiscountKind.flat,
+                        child: Text(pos.currency, style: const TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                    onChanged: (kind) => pos.setItemDiscount(
+                      item.id,
+                      kind,
+                      double.tryParse(_discountController.text),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _discountController,
+                      autofocus: true,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (v) => pos.setItemDiscount(
+                        item.id,
+                        item.discountKind ?? DiscountKind.percent,
+                        double.tryParse(v),
+                      ),
+                      onSubmitted: (_) => setState(() => _editingDiscount = false),
+                      decoration: const InputDecoration(
+                        hintText: 'Amount off',
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (item.lineDiscount > 0 && !_editingDiscount)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Text(
+                  '-${money(pos.currency, item.lineDiscount)} off this item',
+                  style: const TextStyle(fontSize: 11, color: AppColors.success),
+                ),
               ),
             ),
           if (item.notes.isNotEmpty && !_editingNotes)
@@ -471,7 +548,7 @@ class _CartFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final taxLabel = 'Tax (${(AppConfig.taxRate * 100).toStringAsFixed(0)}%)';
+    final taxLabel = 'Tax (${(pos.taxRate * 100).toStringAsFixed(0)}%)';
     final disabled = !pos.hasItems || pos.checkingOut;
 
     return Container(
@@ -488,10 +565,25 @@ class _CartFooter extends StatelessWidget {
           const Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 8),
           _TotalRow(label: 'Subtotal', value: money(pos.currency, pos.subtotal)),
-          if (pos.discountAmount > 0)
+          // Broken out rather than one lump: the three come from different
+          // decisions - a cook's mistake on one dish, a coupon the customer
+          // brought, and a call the manager made.
+          if (pos.itemDiscount > 0)
             _TotalRow(
-              label: 'Discount',
-              value: '-${money(pos.currency, pos.discountAmount)}',
+              label: 'Item discounts',
+              value: '-${money(pos.currency, pos.itemDiscount)}',
+              color: AppColors.success,
+            ),
+          if (pos.couponDiscount > 0)
+            _TotalRow(
+              label: 'Coupon',
+              value: '-${money(pos.currency, pos.couponDiscount)}',
+              color: AppColors.success,
+            ),
+          if (pos.billDiscount > 0)
+            _TotalRow(
+              label: 'Bill discount',
+              value: '-${money(pos.currency, pos.billDiscount)}',
               color: AppColors.success,
             ),
           _TotalRow(label: taxLabel, value: money(pos.currency, pos.tax)),

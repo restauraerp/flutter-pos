@@ -1,3 +1,4 @@
+import '../../core/sales/discount_calculator.dart';
 import '../../core/config/server_config.dart';
 
 /// The API returns numerics inconsistently (`"12.50"`, `12.5`, `null`), so all
@@ -508,16 +509,34 @@ class CartItem {
     required this.product,
     this.qty = 1,
     this.notes = '',
+    this.discountKind,
+    this.discountValue,
   });
 
   final ProductModel product;
   int qty;
   String notes;
 
+  /// "The steak came out cold, take 200 off it." Priced by the server; this is
+  /// what the cashier chose. See core-api's DiscountCalculator.
+  DiscountKind? discountKind;
+  double? discountValue;
+
   int get id => product.id;
   double get lineTotal => product.price * qty;
 
-  CartItem copy() => CartItem(product: product, qty: qty, notes: notes);
+  double get lineDiscount =>
+      DiscountCalculator.amount(discountKind, discountValue, lineTotal);
+
+  double get lineNet => lineTotal - lineDiscount;
+
+  CartItem copy() => CartItem(
+    product: product,
+    qty: qty,
+    notes: notes,
+    discountKind: discountKind,
+    discountValue: discountValue,
+  );
 }
 
 /// An order parked so the terminal can serve the next customer.
@@ -563,4 +582,41 @@ enum OrderType {
       this == OrderType.catering;
   bool get needsAddress => this == OrderType.delivery || this == OrderType.catering;
   bool get needsDeliveryCharge => this == OrderType.delivery;
+}
+
+/// Somebody who can be credited with a sale.
+///
+/// Distinct from the account running the till, which is very often shared —
+/// see core-api's served_by_user_id migration.
+class EmployeeModel {
+  const EmployeeModel({required this.id, required this.name, this.email});
+
+  final int id;
+  final String name;
+  final String? email;
+
+  factory EmployeeModel.fromJson(Map<String, dynamic> json) => EmployeeModel(
+    id: asIntOrNull(json['id']) ?? 0,
+    name: asStringOrNull(json['name']) ?? 'Employee',
+    email: asStringOrNull(json['email']),
+  );
+}
+
+/// A third party that sends the restaurant orders and keeps a cut.
+class PartnerModel {
+  const PartnerModel({
+    required this.id,
+    required this.name,
+    required this.commissionRate,
+  });
+
+  final int id;
+  final String name;
+  final double commissionRate;
+
+  factory PartnerModel.fromJson(Map<String, dynamic> json) => PartnerModel(
+    id: asIntOrNull(json['id']) ?? 0,
+    name: asStringOrNull(json['name']) ?? 'Partner',
+    commissionRate: asDouble(json['commission_rate']),
+  );
 }

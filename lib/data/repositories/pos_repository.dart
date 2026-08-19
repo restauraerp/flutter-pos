@@ -10,6 +10,9 @@ class PosBootstrap {
     required this.discounts,
     required this.locations,
     required this.settings,
+    required this.taxRate,
+    required this.employees,
+    required this.partners,
   });
 
   final List<ProductModel> products;
@@ -18,6 +21,17 @@ class PosBootstrap {
   final List<DiscountModel> discounts;
   final List<LocationModel> locations;
   final Map<String, String> settings;
+
+  /// The restaurant's own combined tax rate, as a fraction.
+  ///
+  /// Read from its tax rules rather than hardcoded. The till used to carry a
+  /// constant 10%, which is the fault TaxCalculator was written to fix on the
+  /// server: a rate that appears nowhere in the system, shown to a customer on
+  /// a total the server then computes differently.
+  final double taxRate;
+
+  final List<EmployeeModel> employees;
+  final List<PartnerModel> partners;
 }
 
 class PosRepository {
@@ -33,6 +47,12 @@ class PosRepository {
       _api.get('/customers', query: {'nopaginate': 1}),
       _api.get('/discounts'),
       _api.get('/locations'),
+      _api.get('/tax-rules'),
+      // Both are optional: a tier without them answers 403, and a till that
+      // cannot open because it could not list employees is worse than one that
+      // simply does not offer the picker.
+      _optional('/users', query: {'nopaginate': 1}),
+      _optional('/partners', query: {'nopaginate': 1, 'active_only': 1}),
     ]);
 
     final settings = <String, String>{};
@@ -58,7 +78,27 @@ class PosRepository {
       locations: ApiClient.unwrapList(
         responses[5],
       ).map(LocationModel.fromJson).toList(),
+      // Summed, not compounded: two 5% rules are 10% of the same base.
+      taxRate: ApiClient.unwrapList(responses[6])
+              .where((rule) => rule['is_active'] == true || rule['is_active'] == 1)
+              .fold<double>(0, (sum, rule) => sum + asDouble(rule['percentage'])) /
+          100,
+      employees: ApiClient.unwrapList(
+        responses[7],
+      ).map(EmployeeModel.fromJson).toList(),
+      partners: ApiClient.unwrapList(
+        responses[8],
+      ).map(PartnerModel.fromJson).toList(),
     );
+  }
+
+  /// A call whose failure should not stop the till opening.
+  Future<dynamic> _optional(String path, {Map<String, dynamic>? query}) async {
+    try {
+      return await _api.get(path, query: query);
+    } on ApiException {
+      return <dynamic>[];
+    }
   }
 
   Future<List<TableModel>> tablesFor(int locationId) async {
@@ -128,11 +168,15 @@ class PosRepository {
     required double taxAmount,
     required double deliveryCharge,
     required double total,
+    String? paymentNote,
   }) async {
     await _api.put(
       '/orders/$orderId',
       body: {
         'payment_method': paymentMethod,
+        // Why this payment looks the way it does - a bKash transaction id, a
+        // card's last four, which guest settled a shared table.
+        if (paymentNote != null && paymentNote.isNotEmpty) 'payment_note': paymentNote,
         'discount_id': discountId,
         'discount_amount': discountAmount.toStringAsFixed(2),
         'delivery_charge': deliveryCharge.toStringAsFixed(2),
@@ -140,6 +184,41 @@ class PosRepository {
         'total': total.toStringAsFixed(2),
       },
     );
+  }
+
+  /// Lets an order leave unpaid, to be collected later.
+  ///
+  /// The API insists on a customer and a note: an unnamed debt cannot be
+  /// collected, and the arrangement - a room number, a company account - would
+  /// otherwise live only in the memory of whoever was on shift.
+  Future<void> markOrderDue(int orderId, String note) async {
+    await _api.post('/orders/$orderId/due', body: {'due_note': note});
+  }
+
+  /// Records money collected against a due order, in part or in full.
+  Future<void> settleOrder({
+    required int orderId,
+    required double amount,
+    required String method,
+    String? note,
+  }) async {
+    await _api.post(
+      '/orders/$orderId/settle',
+      body: {
+        'amount': amount.toStringAsFixed(2),
+        'method': method,
+        if (note != null && note.isNotEmpty) 'note': note,
+      },
+    );
+  }
+
+  /// Orders the restaurant is owed for.
+  Future<List<OrderModel>> dueOrders({int? locationId}) async {
+    final response = await _api.get(
+      '/orders',
+      query: {'nopaginate': 1, 'due_only': 1, 'location_id': ?locationId},
+    );
+    return ApiClient.unwrapList(response).map(OrderModel.fromJson).toList();
   }
 
   Future<void> cancelOrder(int orderId) async {

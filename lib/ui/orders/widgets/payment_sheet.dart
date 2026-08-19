@@ -6,10 +6,20 @@ import '../../theme.dart';
 
 /// What the cashier chose when settling an order.
 class PaymentResult {
-  const PaymentResult({required this.method, required this.discount});
+  const PaymentResult({
+    required this.method,
+    required this.discount,
+    this.note,
+  });
 
   final PaymentMethod method;
   final DiscountModel? discount;
+
+  /// Why this payment looks the way it does - a bKash transaction id, a card's
+  /// last four, which guest settled a shared table. "3,500 by bKash" answers
+  /// what but never why, and the why is what somebody reconciling the till at
+  /// midnight needs.
+  final String? note;
 }
 
 /// Takes payment for an order: shows the amount due, allows a coupon to be
@@ -36,6 +46,7 @@ class _PaymentSheetState extends State<PaymentSheet> {
   PaymentMethod _method = PaymentMethod.cash;
   DiscountModel? _discount;
   final _codeController = TextEditingController();
+  final _noteController = TextEditingController();
   String? _codeError;
 
   @override
@@ -56,6 +67,7 @@ class _PaymentSheetState extends State<PaymentSheet> {
   @override
   void dispose() {
     _codeController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -328,11 +340,35 @@ class _PaymentSheetState extends State<PaymentSheet> {
                   );
                 }).toList(),
               ),
+              const SizedBox(height: 16),
+
+              TextField(
+                controller: _noteController,
+                decoration: InputDecoration(
+                  labelText: 'Reference or note (optional)',
+                  isDense: true,
+                  hintText: switch (_method) {
+                    PaymentMethod.mfs => 'e.g. bKash TrxID BKS8891',
+                    PaymentMethod.card => 'e.g. Visa ending 4421',
+                    PaymentMethod.cash => 'e.g. paid by the host',
+                  },
+                  hintStyle: const TextStyle(fontSize: 12.5),
+                ),
+                style: const TextStyle(fontSize: 13),
+                textCapitalization: TextCapitalization.sentences,
+              ),
+
               const SizedBox(height: 20),
 
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(
-                  PaymentResult(method: _method, discount: _discount),
+                  PaymentResult(
+                    method: _method,
+                    discount: _discount,
+                    note: _noteController.text.trim().isEmpty
+                        ? null
+                        : _noteController.text.trim(),
+                  ),
                 ),
                 child: Text(
                   'Confirm ${money(widget.currency, totals.total)}',

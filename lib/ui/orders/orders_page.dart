@@ -28,6 +28,9 @@ class OrdersPage extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) =>
           OrdersController(PosRepository(context.read<ApiClient>()))
+            // The POS screen already loaded the restaurant's rate; handing it
+            // over keeps the payment sheet quoting the same tax the till does.
+            ..taxRate = pos.taxRate
             ..start(pos.activeLocationId),
       child: const _OrdersView(),
     );
@@ -60,6 +63,7 @@ class _OrdersView extends StatelessWidget {
         order: order,
         method: result.method,
         discount: result.discount,
+        note: result.note,
       );
       messenger.showSnackBar(
         SnackBar(content: Text('Order #${order.id} paid.')),
