@@ -341,6 +341,7 @@ class OrderItemModel {
 class OrderModel {
   OrderModel({
     required this.id,
+    required this.tokenNumber,
     required this.locationId,
     required this.orderType,
     required this.status,
@@ -364,6 +365,11 @@ class OrderModel {
   });
 
   final int id;
+
+  /// The counter number for the day, issued by the API and reset each morning
+  /// at 00:15. Null only for orders taken before the feature existed.
+  final int? tokenNumber;
+
   final int? locationId;
   final OrderType orderType;
   final OrderStatus? status;
@@ -462,6 +468,7 @@ class OrderModel {
 
     return OrderModel(
       id: asInt(json['id']),
+      tokenNumber: asIntOrNull(json['token_number']),
       locationId: asIntOrNull(json['location_id']),
       orderType: OrderType.fromValue('${json['order_type']}'),
       status: OrderStatus.fromValue(asStringOrNull(json['status'])),

@@ -78,6 +78,7 @@ class TicketPrinter {
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           mainAxisSize: pw.MainAxisSize.min,
           children: [
+            ..._tokenBanner(order),
             pw.Center(
               child: pw.Text(
                 'KITCHEN ORDER TICKET',
@@ -188,6 +189,7 @@ class TicketPrinter {
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           mainAxisSize: pw.MainAxisSize.min,
           children: [
+            ..._tokenBanner(order),
             pw.Center(
               child: pw.Text(
                 venue.name.toUpperCase(),
@@ -334,6 +336,31 @@ class TicketPrinter {
     );
 
     return doc.save();
+  }
+
+  /// The day's counter number, at the very top of every document.
+  ///
+  /// Matches the ESC/POS builder's banner so the same order reads the same on
+  /// either print path. It leads because it is the only thing on the slip
+  /// anyone reads from across a room; the order id stays further down, unique
+  /// forever but far too long to shout.
+  ///
+  /// Orders taken before token numbers existed have none, and get no banner
+  /// rather than a blank one.
+  static List<pw.Widget> _tokenBanner(OrderModel order) {
+    if (order.tokenNumber == null) return const [];
+
+    return [
+      pw.Center(
+        child: pw.Text(
+          'TOKEN ${order.tokenNumber}',
+          style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+        ),
+      ),
+      pw.SizedBox(height: 2),
+      _dashed(),
+      pw.SizedBox(height: 6),
+    ];
   }
 
   static pw.Widget _row(

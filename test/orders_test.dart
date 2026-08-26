@@ -153,6 +153,19 @@ void main() {
       expect(o.items.single.price, 12.5);
     });
 
+    test('reads the day\'s token number the API issued', () {
+      expect(order(extra: {'token_number': 42}).tokenNumber, 42);
+      // Sent as a string by some JSON encoders - still a number here.
+      expect(order(extra: {'token_number': '7'}).tokenNumber, 7);
+    });
+
+    test('an order taken before token numbers existed has none', () {
+      // The slip builders check for null and print no banner rather than an
+      // empty one, so this must not become 0.
+      expect(order().tokenNumber, isNull);
+      expect(order(extra: {'token_number': null}).tokenNumber, isNull);
+    });
+
     test('an unknown status still renders rather than crashing', () {
       final o = order(status: 'something_new');
       expect(o.status, isNull);
