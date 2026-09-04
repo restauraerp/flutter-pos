@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../data/models/models.dart';
-import '../../../state/orders_controller.dart';
 import '../../theme.dart';
 
 /// What the cashier chose when settling an order.
 class PaymentResult {
-  const PaymentResult({
-    required this.method,
-    required this.discount,
-    this.note,
-  });
+  const PaymentResult({required this.method, this.note});
 
   final PaymentMethod method;
-  final DiscountModel? discount;
 
   /// Why this payment looks the way it does - a bKash transaction id, a card's
   /// last four, which guest settled a shared table. "3,500 by bKash" answers
@@ -22,21 +16,24 @@ class PaymentResult {
   final String? note;
 }
 
-/// Takes payment for an order: shows the amount due, allows a coupon to be
-/// applied at the till, and captures the payment method.
+/// Takes payment for an order: shows what is owed and captures how it arrived.
+///
+/// The amounts are the order's own and are only displayed here. Everything that
+/// came off the bill - a cook's mistake taken off one dish, a reduction the
+/// manager decided on - was priced by the server when the order was placed.
+/// This sheet used to rebuild the total from the subtotal and a coupon typed at
+/// the till, which dropped all of it: a discounted order came back up at full
+/// price, and confirming it posted that figure back and erased the discount
+/// from the order too.
 class PaymentSheet extends StatefulWidget {
   const PaymentSheet({
     super.key,
     required this.order,
     required this.currency,
-    required this.discounts,
-    required this.controller,
   });
 
   final OrderModel order;
   final String currency;
-  final List<DiscountModel> discounts;
-  final OrdersController controller;
 
   @override
   State<PaymentSheet> createState() => _PaymentSheetState();
@@ -44,67 +41,17 @@ class PaymentSheet extends StatefulWidget {
 
 class _PaymentSheetState extends State<PaymentSheet> {
   PaymentMethod _method = PaymentMethod.cash;
-  DiscountModel? _discount;
-  final _codeController = TextEditingController();
   final _noteController = TextEditingController();
-  String? _codeError;
-
-  @override
-  void initState() {
-    super.initState();
-    // Carry over a coupon already attached to the order when it was placed.
-    final existing = widget.order.discountId;
-    if (existing != null) {
-      for (final d in widget.discounts) {
-        if (d.id == existing) {
-          _discount = d;
-          break;
-        }
-      }
-    }
-  }
 
   @override
   void dispose() {
-    _codeController.dispose();
     _noteController.dispose();
     super.dispose();
-  }
-
-  void _applyCode() {
-    final code = _codeController.text.trim().toLowerCase();
-    if (code.isEmpty) {
-      setState(() => _codeError = 'Enter a code.');
-      return;
-    }
-
-    DiscountModel? found;
-    for (final d in widget.discounts) {
-      if (d.code?.toLowerCase() == code) {
-        found = d;
-        break;
-      }
-    }
-
-    setState(() {
-      if (found == null) {
-        _codeError = 'Invalid code';
-      } else if (!found.isActive) {
-        _codeError = 'Coupon is inactive';
-      } else if (found.isExpired) {
-        _codeError = 'Coupon expired';
-      } else {
-        _discount = found;
-        _codeError = null;
-        _codeController.clear();
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
-    final totals = widget.controller.totalsFor(order, _discount);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -165,7 +112,7 @@ class _PaymentSheetState extends State<PaymentSheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      money(widget.currency, totals.total),
+                      money(widget.currency, order.total),
                       style: const TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.w800,
@@ -180,16 +127,19 @@ class _PaymentSheetState extends State<PaymentSheet> {
                           label: 'Sub',
                           value: money(widget.currency, order.subtotal),
                         ),
-                        if (totals.discount > 0)
+                        // Spelled out rather than folded into the total: a
+                        // cashier being told 900 for a 1,000 bill needs to
+                        // see why.
+                        if (order.discountAmount > 0)
                           _MiniTotal(
-                            label: 'Disc',
+                            label: 'Discount',
                             value:
-                                '-${money(widget.currency, totals.discount)}',
+                                '-${money(widget.currency, order.discountAmount)}',
                             color: AppColors.success,
                           ),
                         _MiniTotal(
                           label: 'Tax',
-                          value: money(widget.currency, totals.tax),
+                          value: money(widget.currency, order.taxAmount),
                         ),
                         if (order.deliveryCharge > 0)
                           _MiniTotal(
@@ -204,80 +154,6 @@ class _PaymentSheetState extends State<PaymentSheet> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Coupon
-              const _Label('COUPON'),
-              if (_discount != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.successBg,
-                    border: Border.all(color: AppColors.successBorder),
-                    borderRadius: BorderRadius.circular(AppRadius.selector),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.local_offer_outlined,
-                        size: 14,
-                        color: AppColors.success,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _discount!.code ?? 'Discount',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.successText,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 15),
-                        color: AppColors.textMuted,
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                        tooltip: 'Remove coupon',
-                        onPressed: () => setState(() => _discount = null),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _codeController,
-                        textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) {
-                          if (_codeError != null) {
-                            setState(() => _codeError = null);
-                          }
-                        },
-                        onSubmitted: (_) => _applyCode(),
-                        decoration: InputDecoration(
-                          hintText: 'Discount code',
-                          errorText: _codeError,
-                        ),
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    SizedBox(
-                      height: 44,
-                      child: FilledButton(
-                        onPressed: _applyCode,
-                        child: const Icon(Icons.check, size: 17),
-                      ),
-                    ),
-                  ],
-                ),
               const SizedBox(height: 16),
 
               // Method
@@ -364,14 +240,13 @@ class _PaymentSheetState extends State<PaymentSheet> {
                 onPressed: () => Navigator.of(context).pop(
                   PaymentResult(
                     method: _method,
-                    discount: _discount,
                     note: _noteController.text.trim().isEmpty
                         ? null
                         : _noteController.text.trim(),
                   ),
                 ),
                 child: Text(
-                  'Confirm ${money(widget.currency, totals.total)}',
+                  'Confirm ${money(widget.currency, order.total)}',
                 ),
               ),
             ],

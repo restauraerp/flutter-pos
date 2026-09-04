@@ -54,6 +54,47 @@ class CategoryModel {
   );
 }
 
+/// One line inside a set-menu / combo product: what it is and how many.
+///
+/// The server sends a combo product's contents as `combo_items`, each pointing
+/// at either a sellable product or a raw inventory item, with a quantity. The
+/// POS never prices these - a combo is sold as its own product at its own
+/// price - it only shows what is inside, so the kitchen making a "Lunch Combo"
+/// can see it is a burger, fries and a drink. Mirrors the web combo breakdown.
+class ComboComponent {
+  const ComboComponent({required this.name, required this.quantity});
+
+  final String name;
+  final double quantity;
+
+  /// "2 × Coke" when more than one, otherwise just the name.
+  String get label {
+    if (quantity <= 1) return name;
+    final q = quantity == quantity.roundToDouble()
+        ? quantity.toInt().toString()
+        : quantity.toString();
+    return '$q × $name';
+  }
+
+  /// Reads a product's `combo_items`, tolerant of either a product component
+  /// (`product.name`) or a raw ingredient (`inventory_item.title`).
+  static List<ComboComponent> listFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <ComboComponent>[];
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final product = entry['product'];
+      final inventory = entry['inventory_item'];
+      final name = (product is Map ? asStringOrNull(product['name']) : null) ??
+          (inventory is Map ? asStringOrNull(inventory['title']) : null) ??
+          'Item';
+      final qty = asDouble(entry['quantity']);
+      out.add(ComboComponent(name: name, quantity: qty <= 0 ? 1 : qty));
+    }
+    return out;
+  }
+}
+
 class ProductModel {
   ProductModel({
     required this.id,
@@ -62,6 +103,8 @@ class ProductModel {
     required this.categoryId,
     required this.imageUrl,
     required this.locationAvailability,
+    this.type,
+    this.comboItems = const [],
   });
 
   final int id;
@@ -69,6 +112,15 @@ class ProductModel {
   final double price;
   final int? categoryId;
   final String? imageUrl;
+
+  /// The product's kind, e.g. 'combo' for a set menu. Null on older payloads,
+  /// which the POS treats as an ordinary single product.
+  final String? type;
+
+  /// A combo's contents, empty for an ordinary product. See [ComboComponent].
+  final List<ComboComponent> comboItems;
+
+  bool get isCombo => type == 'combo' || comboItems.isNotEmpty;
 
   /// locationId -> is_available, from the `locations` pivot. Empty means the
   /// product is not location-scoped and is therefore available everywhere.
@@ -106,6 +158,8 @@ class ProductModel {
       categoryId: asIntOrNull(json['category_id']),
       imageUrl: image,
       locationAvailability: availability,
+      type: asStringOrNull(json['type']),
+      comboItems: ComboComponent.listFrom(json['combo_items']),
     );
   }
 
@@ -236,6 +290,13 @@ class UserModel {
   bool get canViewOrders => permissions.contains('view_orders');
   bool get canUpdateOrderStatus => permissions.contains('update_order_status');
 
+  /// Cancelling (and full-editing) an order is gated on `edit_order`, which the
+  /// server enforces on DELETE /orders and on an items edit - see
+  /// OrderController::destroy/update. `update_order_status` is not enough:
+  /// pos_manager and branch_manager can advance and settle but not cancel.
+  /// restaurant_admin carries every permission, so it includes this one.
+  bool get canEditOrder => permissions.contains('edit_order');
+
   /// True when this user is tied to a single branch.
   ///
   /// `users.location_id` is a `belongsTo`, so staff belong to exactly one
@@ -299,6 +360,7 @@ class OrderItemModel {
     required this.quantity,
     required this.price,
     required this.notes,
+    this.comboItems = const [],
   });
 
   final int id;
@@ -309,12 +371,19 @@ class OrderItemModel {
   final double price;
   final String? notes;
 
+  /// When this line is a combo product, the things inside it - so the kitchen
+  /// ticket and the order card can list them. Empty for an ordinary line.
+  final List<ComboComponent> comboItems;
+
+  bool get isCombo => comboItems.isNotEmpty;
+
   String get displayName => productName ?? 'Item ${productId ?? id}';
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
     String? image;
     String? name;
 
+    var combo = const <ComboComponent>[];
     final product = json['product'];
     if (product is Map) {
       name = asStringOrNull(product['name']);
@@ -323,6 +392,7 @@ class OrderItemModel {
         final url = asStringOrNull((images.first as Map)['url']);
         if (url != null) image = ServerConfig.mediaUrl(url);
       }
+      combo = ComboComponent.listFrom(product['combo_items']);
     }
 
     return OrderItemModel(
@@ -333,6 +403,7 @@ class OrderItemModel {
       quantity: asInt(json['quantity']),
       price: asDouble(json['price']),
       notes: asStringOrNull(json['notes']),
+      comboItems: combo,
     );
   }
 }

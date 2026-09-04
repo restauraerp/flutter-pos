@@ -29,21 +29,6 @@ class OrdersController extends ChangeNotifier {
 
   final PosRepository _repository;
 
-  /// The restaurant's own combined tax rate, set by whoever loaded it.
-  ///
-  /// Defaulted to zero rather than a guess: charging a rate nobody configured
-  /// is how the till came to quote 10% while the server computed something
-  /// else. No rate means no tax, which is what the server does too.
-  double _taxRate = 0;
-
-  double get taxRate => _taxRate;
-
-  set taxRate(double rate) {
-    if (rate == _taxRate) return;
-    _taxRate = rate;
-    notifyListeners();
-  }
-
   /// The web screen polls every 10 seconds; a POS terminal needs the same
   /// liveness so the kitchen and the till stay in step.
   static const Duration refreshInterval = Duration(seconds: 10);
@@ -170,20 +155,13 @@ class OrdersController extends ChangeNotifier {
   Future<void> pay({
     required OrderModel order,
     required PaymentMethod method,
-    required DiscountModel? discount,
     String? note,
   }) {
-    final totals = totalsFor(order, discount);
     return _mutate(
       order.id,
       () => _repository.payOrder(
         orderId: order.id,
         paymentMethod: method.value,
-        discountId: discount?.id,
-        discountAmount: totals.discount,
-        taxAmount: totals.tax,
-        deliveryCharge: order.deliveryCharge,
-        total: totals.total,
         paymentNote: note,
       ),
     );
@@ -208,22 +186,6 @@ class OrdersController extends ChangeNotifier {
       note: note,
     ),
   );
-
-  /// Recomputes an order's totals for a coupon applied at the till, using the
-  /// same arithmetic as the POS screen.
-  ({double discount, double tax, double total}) totalsFor(
-    OrderModel order,
-    DiscountModel? discount,
-  ) {
-    final discountAmount = discount?.amountFor(order.subtotal) ?? 0;
-    final afterDiscount = order.subtotal - discountAmount;
-    final tax = afterDiscount * _taxRate;
-    return (
-      discount: discountAmount,
-      tax: tax,
-      total: afterDiscount + tax + order.deliveryCharge,
-    );
-  }
 
   Future<void> _mutate(int orderId, Future<void> Function() action) async {
     _busyOrderIds.add(orderId);

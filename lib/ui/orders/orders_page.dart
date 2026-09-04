@@ -28,9 +28,6 @@ class OrdersPage extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) =>
           OrdersController(PosRepository(context.read<ApiClient>()))
-            // The POS screen already loaded the restaurant's rate; handing it
-            // over keeps the payment sheet quoting the same tax the till does.
-            ..taxRate = pos.taxRate
             ..start(pos.activeLocationId),
       child: const _OrdersView(),
     );
@@ -49,22 +46,12 @@ class _OrdersView extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => PaymentSheet(
-        order: order,
-        currency: pos.currency,
-        discounts: pos.discounts,
-        controller: orders,
-      ),
+      builder: (_) => PaymentSheet(order: order, currency: pos.currency),
     );
     if (result == null) return;
 
     try {
-      await orders.pay(
-        order: order,
-        method: result.method,
-        discount: result.discount,
-        note: result.note,
-      );
+      await orders.pay(order: order, method: result.method, note: result.note);
       messenger.showSnackBar(
         SnackBar(content: Text('Order #${order.id} paid.')),
       );
@@ -155,6 +142,13 @@ class _OrdersView extends StatelessWidget {
         context.select<AuthController, bool>(
           (c) => c.user?.canUpdateOrderStatus ?? false,
         );
+    // Cancelling needs edit_order, a stronger permission than advancing status.
+    // Gated separately so a pos_manager still gets Pay and the status buttons
+    // but not a Cancel the server would refuse with a 403.
+    final canCancel =
+        context.select<AuthController, bool>(
+          (c) => c.user?.canEditOrder ?? false,
+        );
 
     final branch = pos.activeLocationName;
     final visible = orders.visibleOrders;
@@ -206,6 +200,7 @@ class _OrdersView extends StatelessWidget {
           visible: visible,
           currency: pos.currency,
           canAct: canAct,
+          canCancel: canCancel,
           onPay: (o) => _pay(context, o),
           onCancel: (o) => _cancel(context, o),
           onAdvance: (o, t) => _advance(context, o, t),
@@ -223,6 +218,7 @@ class _Body extends StatelessWidget {
     required this.visible,
     required this.currency,
     required this.canAct,
+    required this.canCancel,
     required this.onPay,
     required this.onCancel,
     required this.onAdvance,
@@ -234,6 +230,7 @@ class _Body extends StatelessWidget {
   final List<OrderModel> visible;
   final String currency;
   final bool canAct;
+  final bool canCancel;
   final void Function(OrderModel) onPay;
   final void Function(OrderModel) onCancel;
   final void Function(OrderModel, OrderTransition) onAdvance;
@@ -277,6 +274,7 @@ class _Body extends StatelessWidget {
           currency: currency,
           busy: orders.isBusy(order.id),
           canAct: canAct,
+          canCancel: canCancel,
           onPay: () => onPay(order),
           onCancel: () => onCancel(order),
           onAdvance: (t) => onAdvance(order, t),

@@ -207,6 +207,25 @@ void main() {
       expect(u.canViewOrders, isTrue);
       expect(u.canUpdateOrderStatus, isFalse);
     });
+
+    test('cancelling an order needs edit_order, not just status updates', () {
+      final manager = UserModel.fromJson({
+        'id': 1,
+        'name': 'POS Manager',
+        'email': 'p@e.com',
+        'all_permissions': ['view_pos', 'view_orders', 'update_order_status'],
+      });
+      expect(manager.canUpdateOrderStatus, isTrue);
+      expect(manager.canEditOrder, isFalse);
+
+      final admin = UserModel.fromJson({
+        'id': 2,
+        'name': 'Owner',
+        'email': 'o@e.com',
+        'all_permissions': ['view_pos', 'view_orders', 'update_order_status', 'edit_order'],
+      });
+      expect(admin.canEditOrder, isTrue);
+    });
   });
 
   group('VenueDetails', () {

@@ -350,6 +350,16 @@ class _CartLineState extends State<_CartLine> {
                         color: AppColors.textMuted,
                       ),
                     ),
+                    if (item.product.isCombo)
+                      Text(
+                        '🍱 ${item.product.comboItems.map((c) => c.label).join(', ')}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
                   ],
                 ),
               ),

@@ -158,16 +158,15 @@ class PosRepository {
     await _api.put('/orders/$orderId', body: {'status': status});
   }
 
-  /// Settles an order: records the payment method and the final amounts, which
-  /// may have changed if a coupon was applied at the till.
+  /// Settles an order: records how the money arrived, and nothing else.
+  ///
+  /// Deliberately posts no amounts. The bill was priced by the server when the
+  /// order was placed, discounts and all; re-posting a total worked out here is
+  /// how a discounted order came to be charged - and then stored - at full
+  /// price. Correcting what is owed is an edit to the order, not a payment.
   Future<void> payOrder({
     required int orderId,
     required String paymentMethod,
-    required int? discountId,
-    required double discountAmount,
-    required double taxAmount,
-    required double deliveryCharge,
-    required double total,
     String? paymentNote,
   }) async {
     await _api.put(
@@ -177,11 +176,6 @@ class PosRepository {
         // Why this payment looks the way it does - a bKash transaction id, a
         // card's last four, which guest settled a shared table.
         if (paymentNote != null && paymentNote.isNotEmpty) 'payment_note': paymentNote,
-        'discount_id': discountId,
-        'discount_amount': discountAmount.toStringAsFixed(2),
-        'delivery_charge': deliveryCharge.toStringAsFixed(2),
-        'tax_amount': taxAmount.toStringAsFixed(2),
-        'total': total.toStringAsFixed(2),
       },
     );
   }

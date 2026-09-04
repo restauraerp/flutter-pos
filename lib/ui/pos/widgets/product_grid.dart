@@ -128,6 +128,27 @@ class _ProductCard extends StatelessWidget {
                         color: AppColors.primary,
                       ),
                     ),
+                    if (product.isCombo) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Set menu',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.info,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -13,6 +13,7 @@ class OrderCard extends StatelessWidget {
     required this.currency,
     required this.busy,
     required this.canAct,
+    required this.canCancel,
     required this.onPay,
     required this.onCancel,
     required this.onAdvance,
@@ -24,6 +25,7 @@ class OrderCard extends StatelessWidget {
   final String currency;
   final bool busy;
   final bool canAct;
+  final bool canCancel;
   final VoidCallback onPay;
   final VoidCallback onCancel;
   final void Function(OrderTransition) onAdvance;
@@ -67,6 +69,7 @@ class OrderCard extends StatelessWidget {
             _Actions(
               order: order,
               busy: busy,
+              canCancel: canCancel,
               onPay: onPay,
               onCancel: onCancel,
               onAdvance: onAdvance,
@@ -408,6 +411,16 @@ class _Items extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (item.isCombo)
+                      Text(
+                        '🍱 ${item.comboItems.map((c) => c.label).join(', ')}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     if (item.notes != null)
                       Text(
                         '📝 ${item.notes}',
@@ -478,6 +491,7 @@ class _Actions extends StatelessWidget {
   const _Actions({
     required this.order,
     required this.busy,
+    required this.canCancel,
     required this.onPay,
     required this.onCancel,
     required this.onAdvance,
@@ -485,6 +499,7 @@ class _Actions extends StatelessWidget {
 
   final OrderModel order;
   final bool busy;
+  final bool canCancel;
   final VoidCallback onPay;
   final VoidCallback onCancel;
   final void Function(OrderTransition) onAdvance;
@@ -530,7 +545,7 @@ class _Actions extends StatelessWidget {
             foreground: AppColors.successText,
             onTap: onPay,
           ),
-        if (order.isCancellable)
+        if (order.isCancellable && canCancel)
           _ActionButton(
             label: 'Cancel',
             icon: Icons.close,

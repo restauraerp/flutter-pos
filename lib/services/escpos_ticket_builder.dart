@@ -82,6 +82,12 @@ class EscPosTicketBuilder {
           styles: const PosStyles(bold: true),
         ),
       ]);
+      for (final part in item.comboItems) {
+        bytes += g.text(
+          _safe('  - ${part.label}'),
+          styles: const PosStyles(fontType: PosFontType.fontB),
+        );
+      }
       if (item.notes != null) {
         bytes += g.text(
           _safe('  * ${item.notes}'),
@@ -156,6 +162,12 @@ class EscPosTicketBuilder {
           styles: const PosStyles(align: PosAlign.right),
         ),
       ]);
+      for (final part in item.comboItems) {
+        bytes += g.text(
+          _safe('  - ${part.label}'),
+          styles: const PosStyles(fontType: PosFontType.fontB),
+        );
+      }
       if (item.notes != null) {
         bytes += g.text(
           _safe('  * ${item.notes}'),

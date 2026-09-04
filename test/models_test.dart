@@ -185,4 +185,56 @@ void main() {
       expect(OrderType.catering.needsDeliveryCharge, isFalse);
     });
   });
+
+  group('ComboComponent & combo products', () {
+    Map<String, dynamic> comboProduct() => {
+          'id': 5,
+          'name': 'Lunch Combo',
+          'price': '350',
+          'type': 'combo',
+          'combo_items': [
+            {'quantity': 1, 'product': {'name': 'Burger'}},
+            {'quantity': 2, 'product': {'name': 'Coke'}},
+            {'quantity': 1, 'inventory_item': {'title': 'Fries'}},
+          ],
+        };
+
+    test('a combo product parses its type and contents', () {
+      final p = ProductModel.fromJson(comboProduct());
+      expect(p.isCombo, isTrue);
+      expect(p.comboItems.map((c) => c.name),
+          containsAll(<String>['Burger', 'Coke', 'Fries']));
+    });
+
+    test('an inventory component falls back to its title', () {
+      final p = ProductModel.fromJson(comboProduct());
+      expect(p.comboItems.any((c) => c.name == 'Fries'), isTrue);
+    });
+
+    test('a quantity above one is shown, a single unit is not', () {
+      final p = ProductModel.fromJson(comboProduct());
+      final coke = p.comboItems.firstWhere((c) => c.name == 'Coke');
+      final burger = p.comboItems.firstWhere((c) => c.name == 'Burger');
+      expect(coke.label, '2 × Coke');
+      expect(burger.label, 'Burger');
+    });
+
+    test('an ordinary product is not a combo', () {
+      final p = ProductModel.fromJson({'id': 1, 'name': 'Tea', 'price': '20'});
+      expect(p.isCombo, isFalse);
+      expect(p.comboItems, isEmpty);
+    });
+
+    test('an order line carries the combo breakdown from its product', () {
+      final item = OrderItemModel.fromJson({
+        'id': 1,
+        'product_id': 5,
+        'quantity': 1,
+        'price': '350',
+        'product': comboProduct(),
+      });
+      expect(item.isCombo, isTrue);
+      expect(item.comboItems.map((c) => c.label), contains('2 × Coke'));
+    });
+  });
 }

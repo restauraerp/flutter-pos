@@ -145,6 +145,12 @@ class TicketPrinter {
                               fontWeight: pw.FontWeight.bold,
                             ),
                           ),
+                          ...item.comboItems.map(
+                            (part) => pw.Text(
+                              '- ${part.label}',
+                              style: const pw.TextStyle(fontSize: 10),
+                            ),
+                          ),
                           if (item.notes != null)
                             pw.Text(
                               '* ${item.notes}',
@@ -271,6 +277,12 @@ class TicketPrinter {
                           ),
                         ),
                       ],
+                    ),
+                    ...item.comboItems.map(
+                      (part) => pw.Text(
+                        '- ${part.label}',
+                        style: const pw.TextStyle(fontSize: 8),
+                      ),
                     ),
                     if (item.notes != null)
                       pw.Text(
