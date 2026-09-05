@@ -49,5 +49,10 @@ class AppConfig {
 
   /// Tax rate applied to the order subtotal after discount.
   /// Mirrors the 10% used by the Next.js POS screen.
+  /// Removed: the till read a hardcoded 10% VAT while the server computed tax
+  /// from the restaurant's own rules, so the total on screen could differ from
+  /// the one on the bill. PosController now reads /tax-rules at boot. This is
+  /// the same fault TaxCalculator was written to fix on the web POS.
+  @Deprecated('Read the rate from PosController.taxRate, which comes from /tax-rules.')
   static const double taxRate = 0.10;
 }

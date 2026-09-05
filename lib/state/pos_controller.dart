@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api/api_client.dart';
-import '../core/config/app_config.dart';
+import '../core/sales/discount_calculator.dart';
 import '../data/models/models.dart';
 import '../data/repositories/pos_repository.dart';
 
@@ -20,6 +20,20 @@ class PosController extends ChangeNotifier {
   List<CategoryModel> _categories = const [];
   List<CustomerModel> _customers = const [];
   List<DiscountModel> _discounts = const [];
+  List<EmployeeModel> _employees = const [];
+  List<PartnerModel> _partners = const [];
+
+  /// The restaurant's own rate, replacing a hardcoded 10%.
+  double _taxRate = 0;
+
+  /// Who to credit for the sale, and who sent it in. Both optional.
+  int? _servedByUserId;
+  int? _partnerId;
+
+  /// A reduction on the whole bill, on top of any coupon.
+  DiscountKind _billDiscountKind = DiscountKind.percent;
+  double? _billDiscountValue;
+  String _billDiscountReason = '';
   List<LocationModel> _locations = const [];
   Map<String, String> _settings = const {};
 
@@ -31,6 +45,14 @@ class PosController extends ChangeNotifier {
   List<CategoryModel> get categories => _categories;
   List<CustomerModel> get customers => _customers;
   List<DiscountModel> get discounts => _discounts;
+  List<EmployeeModel> get employees => _employees;
+  List<PartnerModel> get partners => _partners;
+  double get taxRate => _taxRate;
+  int? get servedByUserId => _servedByUserId;
+  int? get partnerId => _partnerId;
+  DiscountKind get billDiscountKind => _billDiscountKind;
+  double? get billDiscountValue => _billDiscountValue;
+  String get billDiscountReason => _billDiscountReason;
   List<LocationModel> get locations => _locations;
 
   String get currency => _settings['currency_symbol'] ?? '৳';
@@ -130,11 +152,28 @@ class PosController extends ChangeNotifier {
 
   double get subtotal => _cart.fold(0, (sum, item) => sum + item.lineTotal);
 
-  double get discountAmount => _appliedDiscount?.amountFor(subtotal) ?? 0;
+  /// Every reduction on the bill, in the order the server applies them.
+  /// See core-api's DiscountCalculator - this mirrors it so the till quotes
+  /// the total that will actually be charged.
+  double get itemDiscount =>
+      _cart.fold(0, (sum, item) => sum + item.lineDiscount);
+
+  double get afterItemDiscounts => subtotal - itemDiscount;
+
+  double get couponDiscount =>
+      _appliedDiscount?.amountFor(afterItemDiscounts) ?? 0;
+
+  double get billDiscount => DiscountCalculator.amount(
+    _billDiscountKind,
+    _billDiscountValue,
+    afterItemDiscounts - couponDiscount,
+  );
+
+  double get discountAmount => itemDiscount + couponDiscount + billDiscount;
 
   double get afterDiscount => subtotal - discountAmount;
 
-  double get tax => afterDiscount * AppConfig.taxRate;
+  double get tax => afterDiscount * _taxRate;
 
   double get effectiveDeliveryCharge =>
       _orderType.needsDeliveryCharge ? _deliveryCharge : 0;
@@ -154,6 +193,9 @@ class PosController extends ChangeNotifier {
       _categories = data.categories;
       _customers = data.customers;
       _discounts = data.discounts;
+      _employees = data.employees;
+      _partners = data.partners;
+      _taxRate = data.taxRate;
       _locations = data.locations;
       _settings = data.settings;
 
@@ -452,6 +494,34 @@ class PosController extends ChangeNotifier {
   // ---- Checkout ------------------------------------------------------------
 
   /// Places the order. Returns the new order id, or throws [ApiException].
+  void setServedBy(int? userId) {
+    _servedByUserId = userId;
+    notifyListeners();
+  }
+
+  void setPartner(int? partnerId) {
+    _partnerId = partnerId;
+    notifyListeners();
+  }
+
+  void setBillDiscount(DiscountKind kind, double? value, {String reason = ''}) {
+    _billDiscountKind = kind;
+    _billDiscountValue = value;
+    _billDiscountReason = reason;
+    notifyListeners();
+  }
+
+  /// "The steak came out cold, take 200 off it."
+  void setItemDiscount(int productId, DiscountKind? kind, double? value) {
+    for (final item in _cart) {
+      if (item.id == productId) {
+        item.discountKind = kind;
+        item.discountValue = value;
+      }
+    }
+    notifyListeners();
+  }
+
   Future<int> checkout() async {
     if (_cart.isEmpty) {
       throw ApiException('The cart is empty.');
@@ -473,6 +543,13 @@ class PosController extends ChangeNotifier {
         'table_id': _orderType.needsTable ? _selectedTableId : null,
         'customer_id': _selectedCustomerId,
         'discount_id': _appliedDiscount?.id,
+        // The server prices all of these; what it stores is computed from the
+        // lines and its own records, not from anything sent here.
+        'served_by_user_id': _servedByUserId,
+        'partner_id': _partnerId,
+        'discount_type': _billDiscountValue == null ? null : _billDiscountKind.value,
+        'discount_value': _billDiscountValue,
+        'discount_reason': _billDiscountReason.isEmpty ? null : _billDiscountReason,
         'delivery_time': _formatDeliveryTime(),
         'delivery_address': _deliveryAddress.isEmpty ? null : _deliveryAddress,
         'latitude': _latitude,
@@ -484,6 +561,8 @@ class PosController extends ChangeNotifier {
                 'qty': item.qty,
                 'price': item.product.price.toStringAsFixed(2),
                 'notes': item.notes.isEmpty ? null : item.notes,
+                'discount_type': item.discountValue == null ? null : item.discountKind?.value,
+                'discount_value': item.discountValue,
               },
             )
             .toList(),
@@ -553,5 +632,12 @@ class PosController extends ChangeNotifier {
     _deliveryAddress = '';
     _latitude = null;
     _longitude = null;
+    // Cleared with the rest of the ticket: the next customer is not
+    // necessarily served by the same person, and a sticky value would quietly
+    // credit them anyway.
+    _servedByUserId = null;
+    _partnerId = null;
+    _billDiscountValue = null;
+    _billDiscountReason = '';
   }
 }

@@ -24,6 +24,7 @@ class EscPosTicketBuilder {
     final g = Generator(_paper, profile);
     var bytes = <int>[];
 
+    bytes += _tokenBanner(g, order);
     bytes += g.text(
       'KITCHEN ORDER TICKET',
       styles: const PosStyles(align: PosAlign.center, bold: true),
@@ -81,6 +82,12 @@ class EscPosTicketBuilder {
           styles: const PosStyles(bold: true),
         ),
       ]);
+      for (final part in item.comboItems) {
+        bytes += g.text(
+          _safe('  - ${part.label}'),
+          styles: const PosStyles(fontType: PosFontType.fontB),
+        );
+      }
       if (item.notes != null) {
         bytes += g.text(
           _safe('  * ${item.notes}'),
@@ -103,6 +110,7 @@ class EscPosTicketBuilder {
 
     String money(double v) => '${_safe(venue.currency)}${v.toStringAsFixed(2)}';
 
+    bytes += _tokenBanner(g, order);
     bytes += g.text(
       _safe(venue.name.toUpperCase()),
       styles: const PosStyles(
@@ -154,6 +162,12 @@ class EscPosTicketBuilder {
           styles: const PosStyles(align: PosAlign.right),
         ),
       ]);
+      for (final part in item.comboItems) {
+        bytes += g.text(
+          _safe('  - ${part.label}'),
+          styles: const PosStyles(fontType: PosFontType.fontB),
+        );
+      }
       if (item.notes != null) {
         bytes += g.text(
           _safe('  * ${item.notes}'),
@@ -215,6 +229,33 @@ class EscPosTicketBuilder {
     bytes += g.feed(2);
     bytes += g.cut();
     return bytes;
+  }
+
+  /// The day's counter number, as large as the roll allows, at the very top of
+  /// every document.
+  ///
+  /// It leads because it is the only thing on the slip anyone reads from across
+  /// a room - the customer checking whether 42 has been called, the runner
+  /// matching a bag to a ticket. The order id stays further down: it is unique
+  /// forever but five digits long by now, and nobody shouts it.
+  ///
+  /// Orders taken before token numbers existed have none, and get no banner
+  /// rather than a blank one.
+  static List<int> _tokenBanner(Generator g, OrderModel order) {
+    if (order.tokenNumber == null) return const [];
+
+    return [
+      ...g.text(
+        'TOKEN ${order.tokenNumber}',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      ),
+      ...g.hr(ch: '='),
+    ];
   }
 
   /// A label/value line spanning the full width, value right-aligned.
