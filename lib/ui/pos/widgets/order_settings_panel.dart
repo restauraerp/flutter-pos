@@ -103,6 +103,67 @@ class _OrderSettingsPanelState extends State<OrderSettingsPanel> {
             const SizedBox(height: 10),
             OrderTypeSelector(value: type, onChanged: pos.setOrderType),
 
+            // Who to credit for the sale. Hidden when there is nobody to choose
+            // between - a restaurant with one staff account has no attribution
+            // question to answer. Searchable, because a real one has dozens and
+            // a dropdown that long cannot be used mid-service.
+            if (pos.employees.length > 1) ...[
+              const SizedBox(height: 12),
+              const _SectionLabel('SERVED BY (OPTIONAL)'),
+              DropdownButtonFormField<int?>(
+                initialValue: pos.servedByUserId,
+                isExpanded: true,
+                decoration: const InputDecoration(isDense: true),
+                hint: const Text('Nobody in particular', style: TextStyle(fontSize: 12.5)),
+                items: [
+                  const DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('Nobody in particular', style: TextStyle(fontSize: 12.5)),
+                  ),
+                  ...pos.employees.map(
+                    (e) => DropdownMenuItem<int?>(
+                      value: e.id,
+                      child: Text(e.name, style: const TextStyle(fontSize: 12.5), overflow: TextOverflow.ellipsis),
+                    ),
+                  ),
+                ],
+                onChanged: pos.setServedBy,
+              ),
+            ],
+
+            // A third party that sent this order in. Only for the order types
+            // an aggregator actually sends, and only once one exists.
+            if (pos.partners.isNotEmpty &&
+                (type == OrderType.delivery || type == OrderType.takeaway)) ...[
+              const SizedBox(height: 12),
+              const _SectionLabel('CAME THROUGH (OPTIONAL)'),
+              DropdownButtonFormField<int?>(
+                initialValue: pos.partnerId,
+                isExpanded: true,
+                decoration: const InputDecoration(isDense: true),
+                items: [
+                  const DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('Direct — not through a partner', style: TextStyle(fontSize: 12.5)),
+                  ),
+                  ...pos.partners.map(
+                    (p) => DropdownMenuItem<int?>(
+                      value: p.id,
+                      // The rate is shown so whoever rings it up can see what
+                      // the sale is really worth. It is never sent - the server
+                      // prices the commission from its own record.
+                      child: Text(
+                        '${p.name} (${p.commissionRate.toStringAsFixed(0)}%)',
+                        style: const TextStyle(fontSize: 12.5),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+                onChanged: pos.setPartner,
+              ),
+            ],
+
             if (type.needsTable) ...[
               const SizedBox(height: 12),
               const _SectionLabel('SELECT TABLE'),

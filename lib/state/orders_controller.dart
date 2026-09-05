@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../core/api/api_client.dart';
-import '../core/config/app_config.dart';
 import '../data/models/models.dart';
 import '../data/repositories/pos_repository.dart';
 
@@ -156,38 +155,37 @@ class OrdersController extends ChangeNotifier {
   Future<void> pay({
     required OrderModel order,
     required PaymentMethod method,
-    required DiscountModel? discount,
+    String? note,
   }) {
-    final totals = totalsFor(order, discount);
     return _mutate(
       order.id,
       () => _repository.payOrder(
         orderId: order.id,
         paymentMethod: method.value,
-        discountId: discount?.id,
-        discountAmount: totals.discount,
-        taxAmount: totals.tax,
-        deliveryCharge: order.deliveryCharge,
-        total: totals.total,
+        paymentNote: note,
       ),
     );
   }
 
-  /// Recomputes an order's totals for a coupon applied at the till, using the
-  /// same arithmetic as the POS screen.
-  ({double discount, double tax, double total}) totalsFor(
-    OrderModel order,
-    DiscountModel? discount,
-  ) {
-    final discountAmount = discount?.amountFor(order.subtotal) ?? 0;
-    final afterDiscount = order.subtotal - discountAmount;
-    final tax = afterDiscount * AppConfig.taxRate;
-    return (
-      discount: discountAmount,
-      tax: tax,
-      total: afterDiscount + tax + order.deliveryCharge,
-    );
-  }
+  /// Lets an order leave unpaid, to be collected later.
+  Future<void> markDue(OrderModel order, String note) =>
+      _mutate(order.id, () => _repository.markOrderDue(order.id, note));
+
+  /// Records money collected against a due order, in part or in full.
+  Future<void> settle(
+    OrderModel order, {
+    required double amount,
+    required String method,
+    String? note,
+  }) => _mutate(
+    order.id,
+    () => _repository.settleOrder(
+      orderId: order.id,
+      amount: amount,
+      method: method,
+      note: note,
+    ),
+  );
 
   Future<void> _mutate(int orderId, Future<void> Function() action) async {
     _busyOrderIds.add(orderId);

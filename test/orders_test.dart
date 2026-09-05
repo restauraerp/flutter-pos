@@ -153,6 +153,19 @@ void main() {
       expect(o.items.single.price, 12.5);
     });
 
+    test('reads the day\'s token number the API issued', () {
+      expect(order(extra: {'token_number': 42}).tokenNumber, 42);
+      // Sent as a string by some JSON encoders - still a number here.
+      expect(order(extra: {'token_number': '7'}).tokenNumber, 7);
+    });
+
+    test('an order taken before token numbers existed has none', () {
+      // The slip builders check for null and print no banner rather than an
+      // empty one, so this must not become 0.
+      expect(order().tokenNumber, isNull);
+      expect(order(extra: {'token_number': null}).tokenNumber, isNull);
+    });
+
     test('an unknown status still renders rather than crashing', () {
       final o = order(status: 'something_new');
       expect(o.status, isNull);
@@ -193,6 +206,25 @@ void main() {
       });
       expect(u.canViewOrders, isTrue);
       expect(u.canUpdateOrderStatus, isFalse);
+    });
+
+    test('cancelling an order needs edit_order, not just status updates', () {
+      final manager = UserModel.fromJson({
+        'id': 1,
+        'name': 'POS Manager',
+        'email': 'p@e.com',
+        'all_permissions': ['view_pos', 'view_orders', 'update_order_status'],
+      });
+      expect(manager.canUpdateOrderStatus, isTrue);
+      expect(manager.canEditOrder, isFalse);
+
+      final admin = UserModel.fromJson({
+        'id': 2,
+        'name': 'Owner',
+        'email': 'o@e.com',
+        'all_permissions': ['view_pos', 'view_orders', 'update_order_status', 'edit_order'],
+      });
+      expect(admin.canEditOrder, isTrue);
     });
   });
 
