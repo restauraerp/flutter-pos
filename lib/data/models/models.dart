@@ -1,5 +1,5 @@
 import '../../core/sales/discount_calculator.dart';
-import '../../core/config/server_config.dart';
+import '../../core/config/app_config.dart';
 
 /// The API returns numerics inconsistently (`"12.50"`, `12.5`, `null`), so all
 /// parsing funnels through these helpers.
@@ -133,7 +133,7 @@ class ProductModel {
       final first = images.first;
       if (first is Map) {
         final url = asStringOrNull(first['url']);
-        if (url != null) image = ServerConfig.mediaUrl(url);
+        if (url != null) image = AppConfig.mediaUrl(url);
       }
     }
 
@@ -390,7 +390,7 @@ class OrderItemModel {
       final images = product['images'];
       if (images is List && images.isNotEmpty && images.first is Map) {
         final url = asStringOrNull((images.first as Map)['url']);
-        if (url != null) image = ServerConfig.mediaUrl(url);
+        if (url != null) image = AppConfig.mediaUrl(url);
       }
       combo = ComboComponent.listFrom(product['combo_items']);
     }

@@ -1,13 +1,16 @@
 /// Build-time configuration.
 ///
-/// The base URL is resolved in this order:
-///   1. `--dart-define=API_BASE_URL=...`  (explicit override, wins over everything)
-///   2. The preset for `--dart-define=APP_ENV=dev|staging|prod`
-///   3. The `dev` preset
+/// The API server this terminal talks to is fixed when the app is built — there
+/// is no in-app server picker. A *local* build talks to a locally running
+/// core-api; a *production* build talks to https://app.restauraerp.com.
 ///
-/// A URL saved by the user on the login screen overrides all of the above at
-/// runtime — see `ServerConfig`. The values here are only the *defaults* baked
-/// into a given build.
+/// The base URL is resolved in this order:
+///   1. `--dart-define=API_BASE_URL=...`  (explicit override for one-off builds)
+///   2. The preset for `--dart-define=APP_ENV=dev|staging|prod`
+///   3. The `dev` (local) preset
+///
+/// The CI release build passes `--dart-define=APP_ENV=prod`; a plain
+/// `flutter run` gets the `dev` preset.
 class AppConfig {
   const AppConfig._();
 
@@ -22,6 +25,8 @@ class AppConfig {
   ///
   /// `10.0.2.2` is the Android emulator's alias for the host machine's
   /// `127.0.0.1`, so a locally running core-api is reachable from the emulator.
+  /// For a desktop build or a physical device on the LAN, override the local
+  /// target with `--dart-define=API_BASE_URL=http://<host>:8029/api/v1`.
   static const Map<String, String> _presets = <String, String>{
     'dev': 'http://10.0.2.2:8029/api/v1',
     'staging': 'https://staging.restauraerp.com/api/v1',
@@ -30,22 +35,33 @@ class AppConfig {
 
   static String get environment => _envName;
 
-  /// The base URL compiled into this build.
-  static String get defaultBaseUrl {
+  /// The API base URL compiled into this build.
+  static String get baseUrl {
     if (_baseUrlOverride.isNotEmpty) return _baseUrlOverride;
     return _presets[_envName] ?? _presets['dev']!;
   }
 
-  /// True when the build targets a non-production API, so the UI can badge it.
+  /// True when the build targets the production API, so the UI can badge
+  /// anything else as a non-production build.
   static bool get isProduction => _envName == 'prod';
 
-  /// Whether the user may change the server URL at runtime. Locked-down
-  /// production builds can be compiled with `--dart-define=LOCK_SERVER_URL=true`
-  /// so terminals in the field cannot be pointed elsewhere.
-  static const bool lockServerUrl = bool.fromEnvironment(
-    'LOCK_SERVER_URL',
-    defaultValue: false,
-  );
+  /// Origin of the API server, used to resolve `/storage/...` image paths.
+  static String get storageBaseUrl {
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null) return baseUrl;
+    return Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+    ).toString();
+  }
+
+  /// Absolute URL for a media path returned by the API.
+  static String mediaUrl(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    final clean = path.startsWith('/') ? path.substring(1) : path;
+    return '$storageBaseUrl/storage/$clean';
+  }
 
   /// Tax rate applied to the order subtotal after discount.
   /// Mirrors the 10% used by the Next.js POS screen.
