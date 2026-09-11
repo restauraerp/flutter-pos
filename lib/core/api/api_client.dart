@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../config/server_config.dart';
+import '../config/app_config.dart';
 import 'session.dart';
 
 /// A failed API call, carrying enough detail for the UI to show something
@@ -47,7 +47,7 @@ class ApiClient {
   static void Function()? onUnauthorized;
 
   Uri _uri(String endpoint, [Map<String, dynamic>? query]) {
-    final base = ServerConfig.baseUrl;
+    final base = AppConfig.baseUrl;
     final uri = Uri.parse('$base$endpoint');
     if (query == null || query.isEmpty) return uri;
     return uri.replace(
@@ -96,10 +96,6 @@ class ApiClient {
   }
 
   Future<dynamic> _send(Future<http.Response> Function() request) async {
-    if (!ServerConfig.isConfigured) {
-      throw ApiException('No server configured for this terminal.');
-    }
-
     http.Response response;
     try {
       response = await request().timeout(timeout);
@@ -109,7 +105,7 @@ class ApiClient {
       );
     } catch (e) {
       throw ApiException(
-        'Could not reach the server at ${ServerConfig.baseUrl}.\n$e',
+        'Could not reach the server at ${AppConfig.baseUrl}.\n$e',
       );
     }
 
@@ -163,35 +159,6 @@ class ApiClient {
     }
 
     return ApiException(message, statusCode: status, errors: errors);
-  }
-
-  /// Checks that [rawUrl] is actually a RestoraERP API before we save it.
-  ///
-  /// Any HTTP status counts as reachable — an unauthenticated `/auth/me`
-  /// answering 401 is a *successful* probe, since it proves the host is up and
-  /// speaking the API. Only transport failures mean a bad URL.
-  static Future<String?> probe(String rawUrl) async {
-    final normalized = ServerConfig.normalize(rawUrl);
-    if (normalized.isEmpty) return 'Enter a server address.';
-
-    final uri = Uri.tryParse('$normalized/auth/me');
-    if (uri == null || uri.host.isEmpty) {
-      return 'That does not look like a valid address.';
-    }
-
-    final client = http.Client();
-    try {
-      await client
-          .get(uri, headers: {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 10));
-      return null;
-    } on TimeoutException {
-      return 'No response from $normalized. Check the address and that the server is running.';
-    } catch (_) {
-      return 'Could not reach $normalized. Check the address, port, and network.';
-    } finally {
-      client.close();
-    }
   }
 
   /// Unwraps `{"data": [...]}` / `{"data": {...}}` envelopes, matching the

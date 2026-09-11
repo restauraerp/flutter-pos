@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/config/app_config.dart';
-import '../../core/config/server_config.dart';
 import '../../state/auth_controller.dart';
 import '../theme.dart';
-import 'server_setup_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -137,10 +135,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
 
                         const SizedBox(height: 18),
-                        const Divider(height: 1, color: AppColors.border),
-                        const SizedBox(height: 12),
-                        const _ServerRow(),
-                        const BuildBadge(),
+                        const _BuildBadge(),
                       ],
                     ),
                   ),
@@ -175,41 +170,122 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-/// Shows the server this terminal talks to, with a way to change it — the
-/// post-logout server management entry point.
-class _ServerRow extends StatelessWidget {
-  const _ServerRow();
+class BrandHeader extends StatelessWidget {
+  const BrandHeader({super.key, required this.subtitle});
+
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.read<AuthController>();
-
-    return Row(
+    return Column(
       children: [
-        const Icon(Icons.dns_outlined, size: 15, color: AppColors.textMuted),
-        const SizedBox(width: 6),
-        Expanded(
+        // The square logo already carries the RESTAURA ERP wordmark, so no
+        // separate title is drawn here.
+        Image.asset(
+          'assets/brand/logo-square.png',
+          width: 132,
+          height: 132,
+          fit: BoxFit.contain,
+        ),
+        Text(
+          subtitle,
+          style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+        ),
+      ],
+    );
+  }
+}
+
+class ErrorBanner extends StatelessWidget {
+  const ErrorBanner({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.dangerBg,
+        border: Border.all(color: AppColors.dangerBorder),
+        borderRadius: BorderRadius.circular(AppRadius.field),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline, size: 17, color: AppColors.danger),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppColors.danger,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ButtonSpinner extends StatelessWidget {
+  const ButtonSpinner({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(AppColors.primaryContent),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(label),
+      ],
+    );
+  }
+}
+
+/// Shows which environment this build points at, so a staging terminal is never
+/// mistaken for a live one. Nothing is shown on a production build.
+class _BuildBadge extends StatelessWidget {
+  const _BuildBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    if (AppConfig.isProduction) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.warningBg,
+            border: Border.all(color: AppColors.warningBorder),
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: Text(
-            ServerConfig.baseUrl,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            '${AppConfig.environment.toUpperCase()} BUILD',
             style: const TextStyle(
-              fontSize: 11.5,
-              color: AppColors.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.warningText,
+              letterSpacing: 0.5,
             ),
           ),
         ),
-        if (!AppConfig.lockServerUrl)
-          TextButton(
-            onPressed: auth.busy ? null : auth.requestServerChange,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text('Change', style: TextStyle(fontSize: 12)),
-          ),
-      ],
+      ),
     );
   }
 }

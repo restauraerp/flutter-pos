@@ -7,7 +7,6 @@ import 'data/repositories/pos_repository.dart';
 import 'state/auth_controller.dart';
 import 'state/pos_controller.dart';
 import 'ui/login/login_page.dart';
-import 'ui/login/server_setup_page.dart';
 import 'ui/pos/pos_page.dart';
 import 'ui/theme.dart';
 
@@ -53,7 +52,6 @@ class _AppRoot extends StatelessWidget {
 
     final child = switch (status) {
       AuthStatus.checking => const _SplashScreen(),
-      AuthStatus.needsServer => const ServerSetupPage(),
       AuthStatus.loggedOut => const LoginPage(),
       AuthStatus.authenticated => const PosPage(),
     };
