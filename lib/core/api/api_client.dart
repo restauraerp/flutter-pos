@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
+import '../config/tenant_config.dart';
 import 'session.dart';
 
 /// A failed API call, carrying enough detail for the UI to show something
@@ -60,10 +61,16 @@ class ApiClient {
 
   Map<String, String> _headers() {
     final token = Session.token;
+    final tenant = TenantConfig.tenant;
     return <String, String>{
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      // Which restaurant this request is for. Load-bearing on the unauthenticated
+      // /auth/login (the only signal the API has to look the email up in the
+      // right tenant); advisory once authenticated, where it is validated
+      // against the token and must match.
+      if (tenant != null && tenant.isNotEmpty) 'X-Tenant-ID': tenant,
     };
   }
 
