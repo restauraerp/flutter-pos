@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/config/tenant_config.dart';
 import '../../state/auth_controller.dart';
 import '../theme.dart';
 
@@ -14,12 +15,16 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
+  final _tenantController = TextEditingController(
+    text: TenantConfig.savedTenant ?? '',
+  );
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscure = true;
 
   @override
   void dispose() {
+    _tenantController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -32,6 +37,7 @@ class _LoginPageState extends State<LoginPage> {
     await context.read<AuthController>().login(
       _emailController.text.trim(),
       _passwordController.text,
+      _tenantController.text.trim(),
     );
   }
 
@@ -61,6 +67,25 @@ class _LoginPageState extends State<LoginPage> {
                           ErrorBanner(message: auth.error!),
                           const SizedBox(height: 16),
                         ],
+
+                        const _FieldLabel('Restaurant code'),
+                        TextFormField(
+                          controller: _tenantController,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          enabled: !auth.busy,
+                          textInputAction: TextInputAction.next,
+                          textCapitalization: TextCapitalization.none,
+                          onChanged: (_) => auth.clearError(),
+                          decoration: const InputDecoration(
+                            hintText: 'your-restaurant',
+                            prefixIcon: Icon(Icons.storefront_outlined, size: 18),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Restaurant code is required'
+                              : null,
+                        ),
+                        const SizedBox(height: 14),
 
                         const _FieldLabel('Email address'),
                         TextFormField(

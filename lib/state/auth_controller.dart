@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/api/api_client.dart';
 import '../core/api/session.dart';
+import '../core/config/tenant_config.dart';
 import '../data/models/models.dart';
 import '../data/repositories/auth_repository.dart';
 
@@ -32,6 +33,7 @@ class AuthController extends ChangeNotifier {
   bool get busy => _busy;
 
   Future<void> bootstrap() async {
+    await TenantConfig.load();
     await Session.load();
 
     // A 401 anywhere in the app drops us back to the login screen.
@@ -75,13 +77,13 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  Future<bool> login(String email, String password) async {
+  Future<bool> login(String email, String password, String tenant) async {
     _busy = true;
     _error = null;
     notifyListeners();
 
     try {
-      final user = await _repository.login(email, password);
+      final user = await _repository.login(email, password, tenant);
 
       // Any user with POS permission may use this terminal; everyone else is
       // turned away even though their credentials were valid.
