@@ -275,6 +275,7 @@ class UserModel {
     required this.email,
     required this.locationId,
     required this.permissions,
+    this.onlineOrderUrl,
   });
 
   final int id;
@@ -282,6 +283,10 @@ class UserModel {
   final String email;
   final int? locationId;
   final List<String> permissions;
+
+  /// The restaurant's public online order link, for staff to share with
+  /// customers. Null when the server has no web app address configured.
+  final String? onlineOrderUrl;
 
   /// The POS terminal is gated on this permission — see `RolePermissionSeeder`,
   /// where `pos_manager` and above are granted it.
@@ -313,6 +318,7 @@ class UserModel {
       email: asStringOrNull(json['email']) ?? '',
       locationId: asIntOrNull(json['location_id']),
       permissions: perms,
+      onlineOrderUrl: asStringOrNull(json['online_order_url']),
     );
   }
 }

@@ -6,6 +6,7 @@ import '../../state/pos_controller.dart';
 import '../theme.dart';
 import '../orders/orders_page.dart';
 import 'widgets/cart_panel.dart';
+import 'widgets/online_order_link.dart';
 import 'widgets/order_settings_panel.dart';
 import 'widgets/product_grid.dart';
 
@@ -621,6 +622,8 @@ class _PosAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
+        if (auth.user?.onlineOrderUrl case final url?)
+          OnlineOrderLinkButton(url: url),
         if (auth.user?.canViewOrders ?? false)
           IconButton(
             icon: const Icon(Icons.receipt_long_outlined, size: 20),
