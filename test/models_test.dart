@@ -125,6 +125,28 @@ void main() {
   });
 
   group('UserModel', () {
+    test('reads the restaurant modules, and delivery needs its module', () {
+      final starter = UserModel.fromJson({
+        'id': 1,
+        'name': 'Cashier',
+        'email': 'c@e.com',
+        'modules': ['pos', 'orders', 'catalog'],
+      });
+      final olderServer = UserModel.fromJson({
+        'id': 2,
+        'name': 'Cashier',
+        'email': 'c@e.com',
+      });
+
+      expect(OrderType.delivery.requiredModule, 'delivery');
+      expect(OrderType.takeaway.requiredModule, isNull);
+      expect(starter.hasModule('delivery'), isFalse);
+      expect(starter.hasModule('pos'), isTrue);
+      // No list at all means the server did not say - offer everything and
+      // let the API refuse.
+      expect(olderServer.hasModule('delivery'), isTrue);
+    });
+
     test('gates the terminal on view_pos', () {
       final allowed = UserModel.fromJson({
         'id': 1,

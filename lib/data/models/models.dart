@@ -276,6 +276,7 @@ class UserModel {
     required this.locationId,
     required this.permissions,
     this.onlineOrderUrl,
+    this.modules,
   });
 
   final int id;
@@ -287,6 +288,13 @@ class UserModel {
   /// The restaurant's public online order link, for staff to share with
   /// customers. Null when the server has no web app address configured.
   final String? onlineOrderUrl;
+
+  /// The restaurant's modules (its custom package's or its tier's), or null
+  /// from a server too old to send them - read as "everything", since the
+  /// server still refuses what the restaurant does not have.
+  final List<String>? modules;
+
+  bool hasModule(String module) => modules == null || modules!.contains(module);
 
   /// The POS terminal is gated on this permission — see `RolePermissionSeeder`,
   /// where `pos_manager` and above are granted it.
@@ -319,6 +327,9 @@ class UserModel {
       locationId: asIntOrNull(json['location_id']),
       permissions: perms,
       onlineOrderUrl: asStringOrNull(json['online_order_url']),
+      modules: json['modules'] is List
+          ? (json['modules'] as List).map((m) => '$m').toList()
+          : null,
     );
   }
 }
@@ -666,6 +677,11 @@ enum OrderType {
       this == OrderType.catering;
   bool get needsAddress => this == OrderType.delivery || this == OrderType.catering;
   bool get needsDeliveryCharge => this == OrderType.delivery;
+
+  /// The module a restaurant needs for this type to be offered. Delivery needs
+  /// Delivery - without it there are no riders to assign, and the API refuses
+  /// the order.
+  String? get requiredModule => this == OrderType.delivery ? 'delivery' : null;
 }
 
 /// Somebody who can be credited with a sale.

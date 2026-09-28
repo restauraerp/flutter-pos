@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../data/models/models.dart';
+import '../../../state/auth_controller.dart';
 import '../../theme.dart';
 
 /// Order types are colour-coded from the brand palette rather than the ad-hoc
@@ -31,10 +33,18 @@ class OrderTypeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthController>().user;
+    // Only what the restaurant can take - but an order already of a type
+    // (a held or edited one) keeps its button, so the selection never vanishes.
+    final offered = OrderType.values.where((type) {
+      final module = type.requiredModule;
+      return module == null || (user?.hasModule(module) ?? true) || type == value;
+    });
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: OrderType.values.map((type) {
+      children: offered.map((type) {
         final style = _style[type]!;
         final active = value == type;
 
